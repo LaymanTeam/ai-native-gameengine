@@ -236,3 +236,31 @@ generations/harbor-light/                 # game name = head folder
 - Every fetched asset has `LICENSE.json` provenance (GPL-3.0 compatibility).
 - Each chat turn = one director phase; state resumes from checkpointer + the game folder itself.
 - **Clerk does NOT gate the engine app.** The engine chat UI is open. Clerk (and Sendblue) are runtime layers generated games import for MULTIPLAYER player identity/login. Never add Clerk middleware/providers to the engine's `app/` shell.
+
+## Design Philosophy and Decisions
+
+* **LangChain workflow and chaining agents** — orchestration lives IN LangChain, never a custom state machine: every agent is a v1 `createAgent` (LangGraph loop), e.g. `engine/ai/agents/director.ts` (module-scoped `MemorySaver` checkpointer keyed by `threadId`) composing the roster as tools via the per-request factory in `engine/ai/tool-definitions.ts`. Deterministic work stays plain code the model merely *invokes* — `applyMinimalDiff` in `debugger.ts`, `runPlaytest` in `playtester.ts` — so verdicts are produced by code, not vibes.
+* **Vetted domain fallbacks for intelligence and accuracy (game theory & mechanics)** — agents don't freestyle their domain knowledge; the researcher/designer/coder ground against curated sources, mirroring how `research/*.md` grounds the engine's own code:
+  * gamemechanicsexplorer.com — mechanic patterns for `designer.ts` GDDs and `logic-evaluator.ts` propositions
+  * gameprogrammingpatterns.com — architecture idioms injected into `coder.ts` context
+  * OpenGameArt — `tools/fetchers/sfx.ts`/`music.ts` build advanced-search URLs (`buildOpenGameArtSearchUrl`, art-type tids 13/12) and parse detail pages for license-cleared candidates
+  * Kenney — CC0 fallback source in the same fetchers (`source: 'kenney'` in `AssetCandidateSchema`)
+* **Voice interaction — increases accessibility** — `engine/tools/voice/voice.ts` layers OS speech-to-text over the same chat surface; the Mantine UI carries `aria-label`s/tooltips throughout (`Chat.tsx`) so the whole loop is reachable by ear and keyboard.
+* **Vite portability, Next routes, and Vercel porting — users up and running fast** — the engine runs as Next.js 16 App Router (`app/api/chat/route.ts`, Node runtime, SSE) while each generated game is wrapped as an independent Vite 8 project (`compiler/vite-creator.ts`) and shipped via the Vercel REST API (`compiler/vercel-deploy.ts`) — prompt to live URL without leaving chat.
+* **RxDB, Clerk, pixel-generator methods** — reusable runtime layers every game imports rather than regenerates: Zod-schemaed save/state methods (`storage/rx-db.ts`), multiplayer player identity (`auth/clerk.ts` — never gating the engine UI), and procedural sprites (`tools/generators/pixel-art.ts`, mask→sprite algorithm on node-canvas).
+* **Gemini omni file creation — images, pixels, music, and SFX** — one provider surface (`engine/ai/providers.ts`) covers every modality: Nano Banana image gen (`generateImage()`, `responseModalities: ['TEXT','IMAGE']`), search-grounded research (`createSearchGroundedModel` binding the native `googleSearch` tool), code (`createCoderModel`), triage (`createTriageModel`), and embeddings — model IDs centralized so swaps are one-line.
+* **ECS + Zod methods as a light declarative logic gate** — bitECS 0.4 helpers (`ecs/bitecs.ts`) keep game state queryable data; Zod schemas gate every boundary (`SessionStateSchema` in clerk.ts, `AssetCandidateSchema`/`LicenseRecordSchema` in the fetchers, `PlaytestReportSchema`, `StructuredFailureSchema`) so agents exchange validated structures, never loose JSON.
+* **JSONIC query game-development memory — human-editable without an editor** — the `config/` manifests (`compiler/asset-manifest.ts`: asset↔variable bindings, `style.json`, `gdd.json`) and `assets/text/` dialogue trees (`tools/generators/text-trees.ts`) mean a human can retheme, rebind, or rewrite content with a text editor; the bidirectional validation pass catches anything they break.
+* **CSS-driven Mantine UI elements — light and human-editable** — both the engine chat (`frontend/components/Chat.tsx`) and the generated games' in-game `ui/` use Mantine v9 with styling overridable via plain CSS rules, no build-step theming required.
+* **Intra-AI generation — entities can make AI calls themselves** — because games ship with the same provider surface (`providers.ts` factories + `systems/calls/` in the game tree), generated entities can call Gemini at *play* time for dialogue, sounds, or images inside their own interfaces — the engine's generation loop continues inside the artifact it produced.
+
+### Future
+
+* **Tauri / Electron packaging for local play** — the Vite project shape (`vite-creator.ts`) is the deliberate enabler: a web-bundled game drops into a Tauri/Electron shell without restructure.
+* **Rivet & Clerk & Sendblue web multiplayer** — `auth/clerk.ts` (player identity, `getSessionState`/`requireAuthInRouteHandler`) + `auth/sendblue.ts` (iMessage/SMS channel) are already runtime layers of every game; Rivet adds the netcode tier.
+* **Vercel deploy → App Store & Play Store** — extend `compiler/vercel-deploy.ts` output through PWA/TWA wrapping.
+* **Intra-game AI generation of entities — self-expanding games** — entities generating entities via the same intra-AI calls, persisted to localstorage/RxDB (`storage/rx-db.ts`), letting a shipped game grow content the engine never authored.
+
+### Ultra-future
+
+* **three.js / react-three-fiber — 3D** — scalars, texture mapping, complex collision; would slot in as a sibling of `renderer/pixi-js.ts` behind the same manifest/ECS contracts so the pipeline above is renderer-agnostic.

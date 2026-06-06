@@ -106,7 +106,9 @@ const SYSTEM_PROMPT =
   'TypeScript against the engine runtime layers (bitECS world/systems, PixiJS v8 renderer, RxDB ' +
   'saves, the input controller, audio playback). You are given the bounded GDD (the source of ' +
   'truth), the config/ asset manifest (bind every referenced asset to its manifest key), and the ' +
-  'game\'s research/ notes. Implement ONLY what the GDD specifies — respect its non-goals. ' +
+  'game\'s research/ notes. Follow the architecture idioms of gameprogrammingpatterns.com where ' +
+  'they fit (game loop, update method, component, state, observer) — the research notes may cite ' +
+  'specific patterns; honor them. Implement ONLY what the GDD specifies — respect its non-goals. ' +
   'After writing or editing files, call typecheck_game to verify; fix every error and re-run until ' +
   'the typecheck is clean before reporting done. Prefer minimal, correct, well-guarded code.';
 

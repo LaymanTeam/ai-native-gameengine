@@ -101,7 +101,9 @@ const SYSTEM_PROMPT =
   'You are the designer/producer of an AI game engine that generates complete, playable 2D games. ' +
   'Turn the user prompt into a BOUNDED game design document: exactly ONE core mechanic, 1-3 scenes, ' +
   'and explicit non-goals (features you deliberately will NOT build). Smaller scope = a game that ' +
-  'actually ships within the engine budget. ' +
+  'actually ships within the engine budget. Ground the core mechanic in established patterns — ' +
+  'cite the matching mechanic from gamemechanicsexplorer.com (via the research notes) so the ' +
+  'logic-evaluator has a known-coherent rule template to verify against. ' +
   'Always confirm the scope with the user in chat BEFORE finalizing — surface the core mechanic, ' +
   'scenes, win/lose conditions, and the non-goals, and ask them to approve or adjust. ' +
   'Only after the user approves, call write_gdd to persist reports/gdd.md and config/gdd.json. ' +
