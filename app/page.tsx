@@ -1,16 +1,12 @@
-import { Container, Stack, Text } from '@mantine/core';
-import { Chat } from '../engine/frontend/components/Chat';
+import { Box } from '@mantine/core';
+import { Chat } from '@/engine/frontend/components/Chat';
 
+// Studio = the agentic engine conversation. The director drives generation phase by phase
+// (design → assets → code → test → deploy); phases stream in as tool events + artifacts.
 export default function HomePage() {
   return (
-    <Container size="sm" py="xl" h="100dvh">
-      <Stack h="100%" gap="md">
-        {/* No branding yet — name/title pending user decision */}
-        <Text c="dimmed" size="sm">
-          Describe the game you want — the engine plans, generates, and deploys it.
-        </Text>
-        <Chat />
-      </Stack>
-    </Container>
+    <Box px="md" py="lg" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Chat />
+    </Box>
   );
 }

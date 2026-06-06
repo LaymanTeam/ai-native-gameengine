@@ -10,3 +10,7 @@ dist/
 .next-trash-*/
 .fuse_hidden*
 tsconfig.tsbuildinfo
+
+# AI-generated game output (keep the authoritative spec tracked)
+generations/*
+!generations/info.md

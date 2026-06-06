@@ -136,3 +136,43 @@ export function createDesignerAgent(options: DesignerAgentOptions = {}) {
 export function designerThreadConfig(threadId: string) {
   return { configurable: { thread_id: threadId } };
 }
+
+function titleCaseLocal(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Deterministic, model-free GDD — the keyless dev path and offline fallback for the design phase.
+ * Lets the design phase run (and be verified) without GOOGLE_API_KEY; the real designer agent
+ * produces a richer GDD when a key is present.
+ */
+export function buildLocalGdd(prompt: string): GameDesignDocument {
+  const clean = prompt.trim() || 'a small top-down adventure';
+  const words = clean.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+  const title = titleCaseLocal(words.slice(0, 4).join(' ')) || 'Untitled Run';
+  const subject = titleCaseLocal(words.slice(0, 3).join(' ') || 'the world');
+  const genre = /shoot|gun|bullet|blast/.test(clean) ? 'top-down shooter'
+    : /puzzle|match|solve/.test(clean) ? 'puzzle'
+    : /platform|jump/.test(clean) ? 'platformer'
+    : /race|drift|car/.test(clean) ? 'arcade racer'
+    : 'top-down action';
+  const isShooter = genre.includes('shooter') || genre.includes('action');
+  const gdd: GameDesignDocument = {
+    title,
+    pitch: `A bounded ${genre} built from: "${clean}".`,
+    genre,
+    coreMechanic: genre.includes('puzzle')
+      ? 'Rearrange the board to satisfy the goal pattern.'
+      : isShooter
+        ? 'Move and auto-fire at waves of enemies while dodging.'
+        : 'Move through the space, avoid hazards, and reach the goal.',
+    scenes: [
+      { id: 'arena', name: `${subject} Arena`, description: `The single playable space, themed around "${clean}".` },
+    ],
+    winCondition: isShooter ? 'Survive all waves (or defeat the boss).' : 'Reach the goal / clear the objective.',
+    loseCondition: 'Player health reaches zero.',
+    controls: ['move (WASD/arrows)', isShooter ? 'auto-fire' : 'interact'],
+    nonGoals: ['no multiplayer', 'no save system', 'one authored scene (no procedural levels)'],
+  };
+  return gddSchema.parse(gdd);
+}

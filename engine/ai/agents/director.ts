@@ -21,6 +21,9 @@ const SYSTEM_PROMPT =
   'You help the user shape a bounded game concept — mechanics, visual direction, audio mood, save/state needs — ' +
   'then drive generation phase by phase (design → assets → code → test → deploy). ' +
   'Use generate_image to explore visual direction when the user discusses look and feel. ' +
+  'When the concept and scope are clear, call design_game to produce and persist the bounded ' +
+  'Game Design Document (one core mechanic, 1-3 scenes, explicit win/lose and non-goals), then ' +
+  'summarize it and ask the user to approve before moving on. ' +
   'Be concise and concrete; confirm scope before generating.';
 
 // Module scope: shared across warm invocations so threads keep their history.

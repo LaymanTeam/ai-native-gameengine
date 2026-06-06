@@ -6,9 +6,18 @@
  * tokens, tool progress, and generated images render incrementally.
  * Conversation history is held server-side (checkpointer keyed by threadId);
  * the client keeps a display copy only.
+ *
+ * Styling follows the Forge visual system (design/forge.css → Mantine theme): Forge avatar,
+ * streaming text, tool/phase activity shown as a calm "build trace", inline concept images,
+ * and a richer composer. The SSE plumbing is unchanged from the original implementation.
  */
 import { useCallback, useRef, useState } from 'react';
-import { Badge, Button, Group, Image, Loader, Paper, ScrollArea, Stack, Text, TextInput } from '@mantine/core';
+import {
+  ActionIcon, Avatar, Box, Button, Group, Image, Loader, Paper,
+  ScrollArea, SegmentedControl, Stack, Text, Textarea, ThemeIcon,
+} from '@mantine/core';
+import type { EngineEvent } from '@/engine/frontend/integration/contracts';
+import { streamChat } from '@/engine/frontend/integration/chat';
 
 const CHAT_LOG_PREFIX = '[engine/frontend/Chat]';
 
@@ -18,25 +27,80 @@ interface GeneratedImageAttachment {
   caption: string;
 }
 
+interface ToolStep {
+  name: string;
+  detail: string;
+  status: 'running' | 'done' | 'failed';
+}
+
+interface Artifact {
+  kind: string;
+  title: string;
+  markdown: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   images: GeneratedImageAttachment[];
+  steps: ToolStep[];
+  artifacts: Artifact[];
 }
 
-type SseEvent =
-  | { type: 'token'; text: string }
-  | { type: 'tool_start'; name: string; detail: string }
-  | { type: 'tool_end'; name: string; ok: boolean; detail: string }
-  | { type: 'image'; id: string; dataUrl: string; caption: string }
-  | { type: 'error'; message: string }
-  | { type: 'done' };
+const SUGGESTIONS = [
+  'A chaotic top-down roguelite in a haunted bakery',
+  'A neon arena shooter with drone swarms',
+  'A cozy fishing-village RPG with a day/night cycle',
+];
+
+function ArtifactCard({ artifact }: { artifact: Artifact }) {
+  return (
+    <Paper withBorder radius="md" p="md" w="100%">
+      <Group gap={8} mb="xs">
+        <ThemeIcon size={18} radius="xl" color="sage" variant="light"><Text size="10px" fw={700}>GDD</Text></ThemeIcon>
+        <Text fw={500} size="sm">{artifact.title}</Text>
+      </Group>
+      <Text component="pre" size="xs" c="dimmed" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.6 }}>
+        {artifact.markdown}
+      </Text>
+    </Paper>
+  );
+}
+
+function ForgeAvatar() {
+  return (
+    <Avatar size={28} radius="xl" color="sage" variant="filled">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+        <path d="M12 2l2.2 6.6H21l-5.4 4 2 6.6L12 15l-5.6 4.2 2-6.6L3 8.6h6.8z" />
+      </svg>
+    </Avatar>
+  );
+}
+
+function TraceRow({ steps }: { steps: ToolStep[] }) {
+  return (
+    <Group gap="md" wrap="wrap">
+      {steps.map((step, i) => (
+        <Group key={`${step.name}-${i}`} gap={6} wrap="nowrap">
+          {step.status === 'running' ? (
+            <Loader size={14} color="sage" />
+          ) : (
+            <ThemeIcon size={16} radius="xl" variant="light" color={step.status === 'failed' ? 'red' : 'sage'}>
+              <Text size="10px" fw={700}>{step.status === 'failed' ? '×' : '✓'}</Text>
+            </ThemeIcon>
+          )}
+          <Text size="xs" c={step.status === 'running' ? 'var(--forge-ink)' : 'dimmed'}>{step.name}</Text>
+        </Group>
+      ))}
+    </Group>
+  );
+}
 
 export function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [mode, setMode] = useState('Full');
   const threadIdRef = useRef<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -50,20 +114,25 @@ export function Chat() {
 
     threadIdRef.current ??= crypto.randomUUID();
     const threadId = threadIdRef.current;
-    const history: ChatMessage[] = [...messages, { role: 'user', content, images: [] }];
+    const history: ChatMessage[] = [...messages, { role: 'user', content, images: [], steps: [], artifacts: [] }];
     console.log(`${CHAT_LOG_PREFIX} send thread=${threadId} chars=${content.length}`);
-    setMessages([...history, { role: 'assistant', content: '', images: [] }]);
+    setMessages([...history, { role: 'assistant', content: '', images: [], steps: [], artifacts: [] }]);
     setInput('');
     setBusy(true);
 
     let assistantText = '';
     let assistantImages: GeneratedImageAttachment[] = [];
+    let assistantSteps: ToolStep[] = [];
+    let assistantArtifacts: Artifact[] = [];
     const renderAssistant = () => {
-      setMessages([...history, { role: 'assistant', content: assistantText, images: assistantImages }]);
+      setMessages([
+        ...history,
+        { role: 'assistant', content: assistantText, images: assistantImages, steps: assistantSteps, artifacts: assistantArtifacts },
+      ]);
       scrollToBottom();
     };
 
-    const handleEvent = (event: SseEvent): void => {
+    const handleEvent = (event: EngineEvent): void => {
       switch (event.type) {
         case 'token':
           assistantText += event.text;
@@ -71,15 +140,29 @@ export function Chat() {
           break;
         case 'tool_start':
           console.log(`${CHAT_LOG_PREFIX} tool_start ${event.name}: ${event.detail}`);
-          setActiveTool(event.name);
+          assistantSteps = [...assistantSteps, { name: event.name, detail: event.detail, status: 'running' }];
+          renderAssistant();
           break;
-        case 'tool_end':
+        case 'tool_end': {
           console.log(`${CHAT_LOG_PREFIX} tool_end ${event.name} ok=${event.ok}: ${event.detail}`);
-          setActiveTool(null);
+          const idx = [...assistantSteps].reverse().findIndex((s) => s.name === event.name && s.status === 'running');
+          if (idx !== -1) {
+            const realIdx = assistantSteps.length - 1 - idx;
+            assistantSteps = assistantSteps.map((s, i) =>
+              i === realIdx ? { ...s, status: event.ok ? 'done' : 'failed', detail: event.detail } : s,
+            );
+          }
+          renderAssistant();
           break;
+        }
         case 'image':
           console.log(`${CHAT_LOG_PREFIX} image received id=${event.id}`);
           assistantImages = [...assistantImages, { id: event.id, dataUrl: event.dataUrl, caption: event.caption }];
+          renderAssistant();
+          break;
+        case 'artifact':
+          console.log(`${CHAT_LOG_PREFIX} artifact ${event.kind}: ${event.title}`);
+          assistantArtifacts = [...assistantArtifacts, { kind: event.kind, title: event.title, markdown: event.markdown }];
           renderAssistant();
           break;
         case 'error':
@@ -96,42 +179,12 @@ export function Chat() {
     };
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, threadId }),
-      });
-      if (!res.ok || !res.body) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`chat route failed status=${res.status} detail=${detail.slice(0, 200)}`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        // SSE frames are separated by a blank line
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop() ?? '';
-        for (const frame of frames) {
-          const dataLine = frame.split('\n').find((line) => line.startsWith('data: '));
-          if (!dataLine) continue;
-          try {
-            handleEvent(JSON.parse(dataLine.slice(6)) as SseEvent);
-          } catch (parseError) {
-            console.error(`${CHAT_LOG_PREFIX} bad SSE frame`, parseError, dataLine.slice(0, 120));
-          }
-        }
-      }
+      await streamChat({ message: content, threadId, onEvent: handleEvent });
     } catch (error) {
       console.error(`${CHAT_LOG_PREFIX} stream error`, error);
       assistantText = assistantText || 'Something went wrong talking to the engine. Please try again.';
       renderAssistant();
     } finally {
-      setActiveTool(null);
       setBusy(false);
     }
   }, [input, busy, messages, scrollToBottom]);
@@ -139,67 +192,115 @@ export function Chat() {
   return (
     <Stack flex={1} mih={0} gap="sm">
       <ScrollArea flex={1} viewportRef={viewportRef} type="auto" aria-label="Conversation history">
-        <Stack gap="xs" p="xs">
+        <Stack gap="lg" p="xs" maw={720} mx="auto" w="100%">
           {messages.length === 0 && (
-            <Text c="dimmed" ta="center" mt="xl">
-              e.g. “A cozy fishing village RPG with a day/night cycle”
-            </Text>
-          )}
-          {messages.map((message, index) => (
-            <Paper
-              key={`${message.role}-${index}`}
-              p="sm"
-              radius="md"
-              withBorder={message.role === 'assistant'}
-              bg={message.role === 'user' ? 'indigo.0' : 'transparent'}
-            >
-              <Text size="xs" c="dimmed" fw={600} tt="uppercase">
-                {message.role === 'user' ? 'You' : 'Engine'}
+            <Stack align="center" mt={80} gap="lg">
+              <ForgeAvatar />
+              <Text c="dimmed" ta="center" maw={420}>
+                Describe a game and I’ll build a playable version. Keep refining it in plain language.
               </Text>
-              <Text style={{ whiteSpace: 'pre-wrap' }}>{message.content || '…'}</Text>
-              {message.images.map((image) => (
-                <Image
-                  key={image.id}
-                  src={image.dataUrl}
-                  alt={image.caption}
-                  title={image.caption}
-                  radius="sm"
-                  mt="xs"
-                  maw={420}
-                />
-              ))}
-            </Paper>
-          ))}
-          {activeTool && (
-            <Group gap="xs" pl="sm" aria-live="polite">
-              <Loader size="xs" />
-              <Badge variant="light">{activeTool}</Badge>
-              <Text size="xs" c="dimmed">
-                working…
-              </Text>
-            </Group>
+              <Group gap="xs" justify="center">
+                {SUGGESTIONS.map((s) => (
+                  <Button key={s} variant="default" size="xs" radius="xl" onClick={() => setInput(s)}>
+                    {s}
+                  </Button>
+                ))}
+              </Group>
+            </Stack>
           )}
+
+          {messages.map((message, index) => {
+            const isUser = message.role === 'user';
+            return (
+              <Group
+                key={`${message.role}-${index}`}
+                align="flex-start"
+                gap="sm"
+                wrap="nowrap"
+                justify={isUser ? 'flex-end' : 'flex-start'}
+                className="forge-rise"
+              >
+                {!isUser && <ForgeAvatar />}
+                <Stack gap={6} maw="84%" align={isUser ? 'flex-end' : 'flex-start'}>
+                  <Text size="10px" fw={600} tt="uppercase" c={isUser ? 'sage' : 'dimmed'} lts="0.08em">
+                    {isUser ? 'You' : 'Forge'}
+                  </Text>
+
+                  {message.steps.length > 0 && <TraceRow steps={message.steps} />}
+
+                  {message.artifacts.map((artifact, i) => (
+                    <ArtifactCard key={`${artifact.kind}-${i}`} artifact={artifact} />
+                  ))}
+
+                  {(message.content || (!isUser && message.steps.length === 0)) && (
+                    isUser ? (
+                      <Paper p="sm" radius="md" withBorder bg="sage.0" style={{ borderBottomRightRadius: 4 }}>
+                        <Text style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
+                      </Paper>
+                    ) : (
+                      <Text style={{ whiteSpace: 'pre-wrap' }}>
+                        {message.content || (busy ? '…' : '')}
+                        {!isUser && busy && index === messages.length - 1 && <span className="forge-caret" />}
+                      </Text>
+                    )
+                  )}
+
+                  {message.images.map((image) => (
+                    <Paper key={image.id} withBorder radius="md" p={6} maw={420}>
+                      <Image src={image.dataUrl} alt={image.caption} title={image.caption} radius="sm" />
+                      <Text size="xs" c="dimmed" mt={6}>{image.caption}</Text>
+                    </Paper>
+                  ))}
+                </Stack>
+                {isUser && <Avatar size={28} radius="xl" color="gray" variant="light">T</Avatar>}
+              </Group>
+            );
+          })}
         </Stack>
       </ScrollArea>
-      <Group gap="xs" align="end">
-        <TextInput
-          flex={1}
-          value={input}
-          onChange={(event) => setInput(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              void send();
-            }
-          }}
-          placeholder="Describe your game…"
-          aria-label="Game description"
-          disabled={busy}
-        />
-        <Button onClick={() => void send()} loading={busy} aria-label="Send message">
-          Send
-        </Button>
-      </Group>
+
+      <Box maw={720} mx="auto" w="100%">
+        <Paper withBorder radius="lg" p="sm" bg="var(--forge-bone-2)">
+          <Textarea
+            value={input}
+            onChange={(event) => setInput(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                void send();
+              }
+            }}
+            placeholder="Describe a game, or refine the current one…"
+            aria-label="Game description"
+            autosize
+            minRows={1}
+            maxRows={6}
+            variant="unstyled"
+            disabled={busy}
+          />
+          <Group gap={4} mt="xs" wrap="nowrap">
+            <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Add reference image" title="Add reference image">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M3 17l5-4 4 3 3-2 6 5" /></svg>
+            </ActionIcon>
+            <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Voice input" title="Voice input">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M6 11a6 6 0 0 0 12 0M12 17v4" /></svg>
+            </ActionIcon>
+            <SegmentedControl
+              size="xs"
+              radius="xl"
+              value={mode}
+              onChange={setMode}
+              data={['Full', 'Balance', 'Style']}
+              ml={4}
+            />
+            <Box flex={1} />
+            <Button onClick={() => void send()} loading={busy} color="dark" radius="md" aria-label="Send message">
+              Send
+            </Button>
+          </Group>
+        </Paper>
+        <Text size="xs" c="dimmed" mt={8} ta="center">gemini · structured GameSpec · ⏎ to send</Text>
+      </Box>
     </Stack>
   );
 }
