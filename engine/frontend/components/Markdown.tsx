@@ -25,7 +25,7 @@ function renderInline(text: string): ReactNode[] {
 }
 
 export function Markdown({ source, tone = 'muted' }: { source: string; tone?: 'muted' | 'normal' }) {
-  const bodyColor = tone === 'muted' ? 'dimmed' : undefined;
+  const bodyColor = tone === 'muted' ? 'dimmed' : 'var(--mantine-color-text)';
   const lines = source.replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
   let bullets: string[] = [];
