@@ -18,6 +18,7 @@ import {
 } from '@mantine/core';
 import type { EngineEvent } from '@/engine/frontend/integration/contracts';
 import { streamChat } from '@/engine/frontend/integration/chat';
+import { Markdown } from './Markdown';
 
 const CHAT_LOG_PREFIX = '[engine/frontend/Chat]';
 
@@ -57,12 +58,10 @@ function ArtifactCard({ artifact }: { artifact: Artifact }) {
   return (
     <Paper withBorder radius="md" p="md" w="100%">
       <Group gap={8} mb="xs">
-        <ThemeIcon size={18} radius="xl" color="sage" variant="light"><Text size="10px" fw={700}>GDD</Text></ThemeIcon>
+        <ThemeIcon size={18} radius="xl" color="sage" variant="light"><Text size="10px" fw={700}>{(artifact.kind || 'doc').slice(0, 4).toUpperCase()}</Text></ThemeIcon>
         <Text fw={500} size="sm">{artifact.title}</Text>
       </Group>
-      <Text component="pre" size="xs" c="dimmed" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.6 }}>
-        {artifact.markdown}
-      </Text>
+      <Markdown source={artifact.markdown} />
     </Paper>
   );
 }
@@ -238,10 +237,12 @@ export function Chat() {
                         <Text style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
                       </Paper>
                     ) : (
-                      <Text style={{ whiteSpace: 'pre-wrap' }}>
-                        {message.content || (busy ? '…' : '')}
-                        {!isUser && busy && index === messages.length - 1 && <span className="forge-caret" />}
-                      </Text>
+                      <Box>
+                        {message.content
+                          ? <Markdown source={message.content} tone="normal" />
+                          : (busy ? <Text c="dimmed">…</Text> : null)}
+                        {busy && index === messages.length - 1 && <span className="forge-caret" />}
+                      </Box>
                     )
                   )}
 
