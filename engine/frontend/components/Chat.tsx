@@ -18,6 +18,7 @@ import {
 } from '@mantine/core';
 import type { EngineEvent } from '@/engine/frontend/integration/contracts';
 import { streamChat } from '@/engine/frontend/integration/chat';
+import { Markdown } from './Markdown';
 
 const CHAT_LOG_PREFIX = '[engine/frontend/Chat]';
 
@@ -60,9 +61,7 @@ function ArtifactCard({ artifact }: { artifact: Artifact }) {
         <ThemeIcon size={18} radius="xl" color="sage" variant="light"><Text size="10px" fw={700}>GDD</Text></ThemeIcon>
         <Text fw={500} size="sm">{artifact.title}</Text>
       </Group>
-      <Text component="pre" size="xs" c="dimmed" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.6 }}>
-        {artifact.markdown}
-      </Text>
+      <Markdown source={artifact.markdown} />
     </Paper>
   );
 }
