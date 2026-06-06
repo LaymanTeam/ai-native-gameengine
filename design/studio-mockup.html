@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FORGE — AI-native game engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0b0d;
+    --panel: #101216;
+    --panel-2: #15181e;
+    --line: #23272f;
+    --line-soft: #1a1d23;
+    --text: #e8eaed;
+    --muted: #757b87;
+    --muted-2: #4a4f59;
+    --lime: #c9f24a;
+    --lime-dim: #8fae33;
+    --plasma: #ff3d8b;
+    --cyan: #46e3d0;
+    --amber: #ffb13d;
+    --radius: 14px;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --display: "Syne", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* atmospheric layers */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(900px 600px at 78% -10%, rgba(255,61,139,0.10), transparent 60%),
+      radial-gradient(1000px 700px at 8% 110%, rgba(201,242,74,0.07), transparent 55%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 44px 44px;
+    opacity: 0.35;
+    mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 80%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .grain {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .app {
+    position: relative;
+    z-index: 2;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 56px 1fr;
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(16,18,22,0.6);
+    backdrop-filter: blur(8px);
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .mark {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: 0.14em;
+    color: var(--text);
+  }
+  .brand .mark b { color: var(--lime); }
+  .brand .sub {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted-2);
+  }
+  .topbar .spacer { flex: 1; }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 12px; border: 1px solid var(--line);
+    border-radius: 999px; background: var(--panel);
+    font-size: 11px; letter-spacing: 0.06em; color: var(--muted);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 10px var(--lime); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  .seg {
+    display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  }
+  .seg button {
+    background: transparent; border: 0; color: var(--muted);
+    font-family: var(--mono); font-size: 11px; padding: 7px 12px; cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .seg button.on { background: var(--panel-2); color: var(--text); }
+  .seg button:not(:last-child){ border-right: 1px solid var(--line); }
+
+  .avatar {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--plasma), var(--amber));
+    display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #1a0a12;
+  }
+
+  /* ---------- main grid ---------- */
+  .main {
+    display: grid;
+    grid-template-columns: 312px 1fr 340px;
+    gap: 0;
+    min-height: 0;
+  }
+  .rail { border-right: 1px solid var(--line); overflow-y: auto; }
+  .rail.right { border-right: 0; border-left: 1px solid var(--line); }
+  .center { overflow-y: auto; display: flex; flex-direction: column; }
+
+  .rail::-webkit-scrollbar, .center::-webkit-scrollbar { width: 8px; }
+  .rail::-webkit-scrollbar-thumb, .center::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .pad { padding: 18px; }
+  .section-label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted-2); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content:""; flex:1; height:1px; background: var(--line-soft); }
+
+  /* prompt */
+  .prompt-box {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 14px;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  .prompt-box:focus-within {
+    border-color: var(--lime-dim);
+    box-shadow: 0 0 0 1px rgba(201,242,74,0.2), 0 0 30px rgba(201,242,74,0.08);
+  }
+  .prompt-box textarea {
+    width: 100%; min-height: 92px; resize: none;
+    background: transparent; border: 0; outline: 0;
+    color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.55;
+  }
+  .prompt-box textarea::placeholder { color: var(--muted-2); }
+  .prompt-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .mic {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px;
+    background: var(--panel-2); color: var(--muted); cursor: pointer; font-size: 11px;
+    transition: all .2s;
+  }
+  .mic:hover { border-color: var(--plasma); color: var(--text); }
+  .mic .wave { display: flex; gap: 2px; align-items: center; height: 12px; }
+  .mic .wave i { width: 2px; background: var(--plasma); border-radius: 2px; animation: eq 1s infinite ease-in-out; }
+  .mic .wave i:nth-child(1){ height: 5px; animation-delay: 0s;}
+  .mic .wave i:nth-child(2){ height: 11px; animation-delay: .15s;}
+  .mic .wave i:nth-child(3){ height: 7px; animation-delay: .3s;}
+  .mic .wave i:nth-child(4){ height: 10px; animation-delay: .45s;}
+  @keyframes eq { 0%,100%{transform:scaleY(.4);} 50%{transform:scaleY(1);} }
+  .charcount { font-size: 10px; color: var(--muted-2); }
+
+  /* modes */
+  .modes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .mode {
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 10px;
+    background: var(--panel); cursor: pointer; text-align: left; transition: all .2s;
+  }
+  .mode:hover { border-color: var(--muted-2); }
+  .mode.on { border-color: var(--lime); background: rgba(201,242,74,0.06); }
+  .mode .t { font-size: 12px; color: var(--text); margin-bottom: 3px; }
+  .mode.on .t { color: var(--lime); }
+  .mode .d { font-size: 9.5px; color: var(--muted-2); line-height: 1.4; }
+
+  /* locks */
+  .locks { display: flex; flex-direction: column; gap: 8px; }
+  .lock {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid var(--line-soft); border-radius: 9px; padding: 9px 12px;
+    background: var(--panel); cursor: pointer; transition: all .2s;
+  }
+  .lock:hover { border-color: var(--line); }
+  .lock .l { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+  .lock.locked { background: rgba(70,227,208,0.05); border-color: rgba(70,227,208,0.3); }
+  .lock.locked .l { color: var(--text); }
+  .switch { width: 30px; height: 17px; border-radius: 999px; background: var(--line); position: relative; transition: background .2s; }
+  .switch::after { content:""; position: absolute; width: 13px; height: 13px; border-radius: 50%; background: var(--muted); top: 2px; left: 2px; transition: .2s; }
+  .lock.locked .switch { background: var(--cyan); }
+  .lock.locked .switch::after { left: 15px; background: #06231f; }
+
+  /* forge button */
+  .forge-btn {
+    width: 100%; margin-top: 4px;
+    border: 0; border-radius: 12px;
+    background: var(--lime); color: #15200a;
+    font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: 0.06em;
+    padding: 14px; cursor: pointer; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: transform .12s, box-shadow .2s;
+    box-shadow: 0 0 0 1px rgba(201,242,74,0.4), 0 8px 30px rgba(201,242,74,0.18);
+  }
+  .forge-btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px var(--lime), 0 10px 40px rgba(201,242,74,0.3); }
+  .forge-btn:active { transform: translateY(0); }
+
+  /* history */
+  .run {
+    border: 1px solid var(--line-soft); border-radius: 10px; padding: 11px 12px; margin-bottom: 8px;
+    background: var(--panel); cursor: pointer; transition: all .2s; position: relative;
+  }
+  .run:hover { border-color: var(--line); transform: translateX(2px); }
+  .run.active { border-color: var(--lime-dim); background: rgba(201,242,74,0.04); }
+  .run .rt { font-size: 12px; color: var(--text); margin-bottom: 5px; }
+  .run .rm { display: flex; gap: 10px; font-size: 10px; color: var(--muted-2); }
+  .run .badge { padding: 1px 6px; border-radius: 4px; font-size: 9px; }
+  .badge.full { background: rgba(201,242,74,0.12); color: var(--lime); }
+  .badge.balance { background: rgba(70,227,208,0.12); color: var(--cyan); }
+  .badge.style { background: rgba(255,177,61,0.12); color: var(--amber); }
+  .run .score { position: absolute; top: 11px; right: 12px; font-size: 11px; color: var(--muted); }
+
+  /* ---------- center / preview ---------- */
+  .preview-wrap { padding: 18px; }
+  .preview {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #07080a;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+  }
+  #game { display: block; width: 100%; height: 100%; }
+  .scanlines {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0) 3px);
+    mix-blend-mode: overlay; opacity: .5;
+  }
+  .hud {
+    position: absolute; top: 14px; left: 14px; right: 14px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    pointer-events: none; font-size: 11px;
+  }
+  .hp-bar { width: 160px; }
+  .hp-track { height: 7px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.12); }
+  .hp-fill { height: 100%; width: 72%; background: linear-gradient(90deg, var(--plasma), var(--amber)); border-radius: 4px; }
+  .hud .lbl { color: rgba(255,255,255,0.55); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 4px; }
+  .hud .big { font-family: var(--display); font-weight: 800; font-size: 22px; color: #fff; line-height: 1; }
+  .wave-tag { text-align: right; }
+  .play-controls {
+    position: absolute; bottom: 14px; left: 14px; right: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .pc-btn {
+    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line);
+    background: rgba(16,18,22,0.8); color: var(--text); cursor: pointer; display: grid; place-items: center;
+    backdrop-filter: blur(6px);
+  }
+  .pc-btn.primary { background: var(--lime); color: #15200a; border-color: var(--lime); }
+  .timeline-mini { flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 4px; position: relative; }
+  .timeline-mini::after { content:""; position: absolute; left:0; top:0; bottom:0; width: 38%; background: var(--lime); border-radius: 4px; }
+
+  /* pipeline */
+  .pipeline { padding: 0 18px 8px; }
+  .pipe {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  }
+  .stage {
+    border: 1px solid var(--line-soft); border-radius: 10px; padding: 12px;
+    background: var(--panel); position: relative; overflow: hidden;
+  }
+  .stage .num { font-size: 9px; color: var(--muted-2); }
+  .stage .name { font-size: 12px; margin: 6px 0 4px; color: var(--text); }
+  .stage .st { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .tick { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-2); }
+  .stage.done { border-color: rgba(201,242,74,0.35); }
+  .stage.done .tick { background: var(--lime); box-shadow: 0 0 8px var(--lime); }
+  .stage.done .st { color: var(--lime); }
+  .stage.active { border-color: var(--plasma); background: rgba(255,61,139,0.05); }
+  .stage.active .tick { background: var(--plasma); box-shadow: 0 0 8px var(--plasma); animation: pulse 1s infinite; }
+  .stage.active .st { color: var(--plasma); }
+  .stage.active::after {
+    content:""; position: absolute; bottom:0; left:0; height:2px; width:100%;
+    background: linear-gradient(90deg, transparent, var(--plasma), transparent);
+    animation: sweep 1.4s infinite;
+  }
+  @keyframes sweep { 0%{transform:translateX(-100%);} 100%{transform:translateX(100%);} }
+
+  .log {
+    margin: 12px 18px 18px; border: 1px solid var(--line-soft); border-radius: 10px;
+    background: #07080a; padding: 12px 14px; font-size: 11px; line-height: 1.7; color: var(--muted);
+    max-height: 120px; overflow-y: auto;
+  }
+  .log .ln { white-space: nowrap; }
+  .log .t { color: var(--muted-2); }
+  .log .ok { color: var(--lime); }
+  .log .warn { color: var(--amber); }
+  .log .ai { color: var(--plasma); }
+
+  /* ---------- right / spec inspector ---------- */
+  .spec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .spec-title { font-family: var(--display); font-weight: 800; font-size: 19px; color: var(--text); line-height: 1.1; }
+  .spec-tag { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+  .json-pill { font-size: 9px; color: var(--lime); border: 1px solid var(--lime-dim); border-radius: 5px; padding: 2px 6px; }
+
+  .field { margin-bottom: 16px; }
+  .field .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted-2); margin-bottom: 8px; }
+
+  .palette { display: flex; gap: 6px; }
+  .sw { flex: 1; height: 34px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.08); position: relative; cursor: pointer; }
+  .sw span { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font-size: 8px; color: var(--muted-2); }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .stat { border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+  .stat .sv { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--text); }
+  .stat .sl { font-size: 9px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .1em; }
+
+  .ent {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px;
+    border: 1px solid var(--line-soft); background: var(--panel); margin-bottom: 7px;
+  }
+  .ent .chip { width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; }
+  .ent .en { font-size: 12px; color: var(--text); }
+  .ent .ed { font-size: 9.5px; color: var(--muted-2); }
+  .ent .stat-tiny { margin-left: auto; text-align: right; font-size: 9px; color: var(--muted); }
+
+  /* eval */
+  .eval { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 14px; }
+  .eval-row { margin-bottom: 11px; }
+  .eval-row:last-child { margin-bottom: 0; }
+  .eval-top { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; }
+  .eval-top .en2 { color: var(--muted); }
+  .eval-top .ev2 { color: var(--text); }
+  .bar { height: 5px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 4px; }
+  .bar i.good { background: var(--lime); }
+  .bar i.mid { background: var(--amber); }
+  .bar i.cy { background: var(--cyan); }
+
+  /* fade-in load */
+  .fade { opacity: 0; transform: translateY(8px); animation: rise .6s forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="app">
+
+  <!-- ============ TOP BAR ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">FOR<b>GE</b></span>
+      <span class="sub">ai-native game engine</span>
+    </div>
+    <div class="status-pill"><span class="dot"></span> sandbox live · gemini-2.5-flash</div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <button class="on">Studio</button>
+      <button>Schema</button>
+      <button>Evals</button>
+    </div>
+    <div class="avatar">T</div>
+  </header>
+
+  <div class="main">
+
+    <!-- ============ LEFT RAIL ============ -->
+    <aside class="rail left">
+      <div class="pad">
+        <div class="section-label">Describe the game</div>
+        <div class="prompt-box fade" style="animation-delay:.05s">
+          <textarea spellcheck="false">A neon-noir survivor where you play a rogue courier dodging drone swarms through rain-slick alleys. Magnet pulls credits, boss is a security mech at 90s.</textarea>
+          <div class="prompt-foot">
+            <button class="mic">
+              <span class="wave"><i></i><i></i><i></i><i></i></span>
+              voice
+            </button>
+            <span class="charcount">listening… 0:04</span>
+          </div>
+        </div>
+
+        <div style="height:22px"></div>
+        <div class="section-label">Generation mode</div>
+        <div class="modes fade" style="animation-delay:.12s">
+          <button class="mode on">
+            <div class="t">Full</div>
+            <div class="d">New spec from scratch</div>
+          </button>
+          <button class="mode">
+            <div class="t">Balance</div>
+            <div class="d">Retune stats & waves</div>
+          </button>
+          <button class="mode">
+            <div class="t">Style</div>
+            <div class="d">Reskin theme & palette</div>
+          </button>
+        </div>
+
+        <div style="height:22px"></div>
+        <div class="section-label">Lock across regen</div>
+        <div class="locks fade" style="animation-delay:.18s">
+          <div class="lock locked">
+            <span class="l">◈ Palette</span><span class="switch"></span>
+          </div>
+          <div class="lock">
+            <span class="l">⬡ Player stats</span><span class="switch"></span>
+          </div>
+          <div class="lock locked">
+            <span class="l">✦ Enemy roster</span><span class="switch"></span>
+          </div>
+          <div class="lock">
+            <span class="l">⟳ Wave timing</span><span class="switch"></span>
+          </div>
+        </div>
+
+        <div style="height:20px"></div>
+        <button class="forge-btn fade" style="animation-delay:.24s">⚡ Forge game</button>
+
+        <div style="height:26px"></div>
+        <div class="section-label">Run history</div>
+        <div class="fade" style="animation-delay:.3s">
+          <div class="run active">
+            <div class="rt">Neon Courier</div>
+            <div class="rm"><span class="badge full">full</span><span>2m ago</span><span>v4</span></div>
+            <div class="score">94</div>
+          </div>
+          <div class="run">
+            <div class="rt">Neon Courier</div>
+            <div class="rm"><span class="badge balance">balance</span><span>6m ago</span><span>v3</span></div>
+            <div class="score">88</div>
+          </div>
+          <div class="run">
+            <div class="rt">Rust Harvest</div>
+            <div class="rm"><span class="badge style">style</span><span>14m ago</span><span>v2</span></div>
+            <div class="score">81</div>
+          </div>
+          <div class="run">
+            <div class="rt">Bakery Brawl</div>
+            <div class="rm"><span class="badge full">full</span><span>22m ago</span><span>v1</span></div>
+            <div class="score">76</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ CENTER ============ -->
+    <section class="center">
+      <div class="preview-wrap fade" style="animation-delay:.1s">
+        <div class="preview">
+          <canvas id="game"></canvas>
+          <div class="scanlines"></div>
+          <div class="hud">
+            <div class="hp-bar">
+              <div class="lbl">Courier · HP</div>
+              <div class="hp-track"><div class="hp-fill"></div></div>
+            </div>
+            <div class="wave-tag">
+              <div class="lbl">Wave 3 · 0:42</div>
+              <div class="big" id="score">14,820</div>
+            </div>
+          </div>
+          <div class="play-controls">
+            <button class="pc-btn primary">❚❚</button>
+            <button class="pc-btn">↺</button>
+            <div class="timeline-mini"></div>
+            <button class="pc-btn">⤢</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pipeline fade" style="animation-delay:.16s">
+        <div class="section-label" style="padding:0 0 10px">Generation pipeline</div>
+        <div class="pipe">
+          <div class="stage done"><div class="num">01</div><div class="name">Spec</div><div class="st"><span class="tick"></span>designed</div></div>
+          <div class="stage done"><div class="num">02</div><div class="name">Patch</div><div class="st"><span class="tick"></span>workspace</div></div>
+          <div class="stage done"><div class="num">03</div><div class="name">Build</div><div class="st"><span class="tick"></span>2.1s</div></div>
+          <div class="stage active"><div class="num">04</div><div class="name">QA</div><div class="st"><span class="tick"></span>screenshot…</div></div>
+          <div class="stage"><div class="num">05</div><div class="name">Repair</div><div class="st"><span class="tick"></span>standby</div></div>
+        </div>
+      </div>
+
+      <div class="log fade" style="animation-delay:.22s" id="log">
+        <div class="ln"><span class="t">12:04:02</span> <span class="ai">spec</span> designing the game · genre=survivor</div>
+        <div class="ln"><span class="t">12:04:05</span> <span class="ai">spec</span> structured output validated against GameSpec ✓</div>
+        <div class="ln"><span class="t">12:04:05</span> patch writing 9 files into workspace</div>
+        <div class="ln"><span class="t">12:04:06</span> build vite bundling → sandbox</div>
+        <div class="ln"><span class="t">12:04:08</span> <span class="ok">build ok</span> served at sb-7f3a.preview.run</div>
+        <div class="ln"><span class="t">12:04:08</span> qa booting headless · capturing first frame…</div>
+      </div>
+    </section>
+
+    <!-- ============ RIGHT RAIL ============ -->
+    <aside class="rail right">
+      <div class="pad">
+        <div class="section-label">GameSpec <span class="json-pill" style="margin-left:auto">JSON · valid</span></div>
+
+        <div class="fade" style="animation-delay:.14s">
+          <div class="spec-head">
+            <div class="spec-title">Neon Courier</div>
+          </div>
+          <div class="spec-tag">survivor · top-down · neon-noir</div>
+
+          <div class="field">
+            <div class="k">Palette</div>
+            <div class="palette">
+              <div class="sw" style="background:#0c1020"><span>bg</span></div>
+              <div class="sw" style="background:#1b2540"><span>floor</span></div>
+              <div class="sw" style="background:#ff3d8b"><span>accent</span></div>
+              <div class="sw" style="background:#46e3d0"><span>player</span></div>
+              <div class="sw" style="background:#ffb13d"><span>xp</span></div>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+          <div class="field">
+            <div class="k">Player</div>
+            <div class="stats">
+              <div class="stat"><div class="sv">120</div><div class="sl">max hp</div></div>
+              <div class="stat"><div class="sv">2.4×</div><div class="sl">speed</div></div>
+              <div class="stat"><div class="sv">3</div><div class="sl">projectiles</div></div>
+              <div class="stat"><div class="sv">640ms</div><div class="sl">cooldown</div></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="k">Enemies</div>
+            <div class="ent">
+              <div class="chip" style="background:#ff3d8b"></div>
+              <div><div class="en">Drone Wisp</div><div class="ed">shooter · ranged</div></div>
+              <div class="stat-tiny">hp 18<br>spd 1.8</div>
+            </div>
+            <div class="ent">
+              <div class="chip" style="background:#7a5cff"></div>
+              <div><div class="en">Alley Hound</div><div class="ed">charger · melee</div></div>
+              <div class="stat-tiny">hp 30<br>spd 3.1</div>
+            </div>
+            <div class="ent">
+              <div class="chip" style="background:#ffb13d"></div>
+              <div><div class="en">Security Mech</div><div class="ed">boss · 90s</div></div>
+              <div class="stat-tiny">hp 900<br>spd 1.0</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="k">Waves</div>
+            <div class="stats" style="grid-template-columns:1fr 1fr 1fr">
+              <div class="stat"><div class="sv">0:10</div><div class="sl">first</div></div>
+              <div class="stat"><div class="sv">8</div><div class="sl">peak/s</div></div>
+              <div class="stat"><div class="sv">3:00</div><div class="sl">length</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:8px"></div>
+        <div class="section-label">Eval scores</div>
+        <div class="eval fade" style="animation-delay:.2s">
+          <div class="eval-row">
+            <div class="eval-top"><span class="en2">Schema validity</span><span class="ev2">100</span></div>
+            <div class="bar"><i class="good" style="width:100%"></i></div>
+          </div>
+          <div class="eval-row">
+            <div class="eval-top"><span class="en2">Playability (QA)</span><span class="ev2">92</span></div>
+            <div class="bar"><i class="good" style="width:92%"></i></div>
+          </div>
+          <div class="eval-row">
+            <div class="eval-top"><span class="en2">Difficulty curve</span><span class="ev2">88</span></div>
+            <div class="bar"><i class="cy" style="width:88%"></i></div>
+          </div>
+          <div class="eval-row">
+            <div class="eval-top"><span class="en2">Theme coherence (LLM)</span><span class="ev2">95</span></div>
+            <div class="bar"><i class="good" style="width:95%"></i></div>
+          </div>
+          <div class="eval-row">
+            <div class="eval-top"><span class="en2">Roster diversity</span><span class="ev2">71</span></div>
+            <div class="bar"><i class="mid" style="width:71%"></i></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<script>
+// --- tiny live "survivor" preview so the mockup feels alive ---
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let W, H;
+function resize(){
+  const r = cv.getBoundingClientRect();
+  cv.width = r.width * devicePixelRatio;
+  cv.height = r.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  W = r.width; H = r.height;
+}
+new ResizeObserver(resize).observe(cv);
+resize();
+
+const P = { x: 0, y: 0, r: 7 };
+const enemies = [];
+const shots = [];
+const xps = [];
+let t = 0;
+
+function spawn(){
+  const edge = Math.floor(Math.random()*4);
+  let x,y;
+  if(edge===0){x=0;y=Math.random()*H;}
+  else if(edge===1){x=W;y=Math.random()*H;}
+  else if(edge===2){x=Math.random()*W;y=0;}
+  else {x=Math.random()*W;y=H;}
+  const kinds = [
+    {c:'#ff3d8b', spd:0.55, r:6},
+    {c:'#7a5cff', spd:0.95, r:5},
+    {c:'#ffb13d', spd:0.4, r:9},
+  ];
+  const k = kinds[Math.floor(Math.random()*kinds.length)];
+  enemies.push({x,y,...k});
+}
+
+function loop(){
+  t++;
+  // player orbits center gently (autopilot demo)
+  const cx = W/2, cy = H/2;
+  P.x = cx + Math.cos(t*0.018) * Math.min(W,H)*0.22;
+  P.y = cy + Math.sin(t*0.024) * Math.min(W,H)*0.18;
+
+  if(t % 26 === 0 && enemies.length < 28) spawn();
+
+  // bg
+  ctx.fillStyle = '#0c1020';
+  ctx.fillRect(0,0,W,H);
+  // floor grid
+  ctx.strokeStyle = 'rgba(70,110,160,0.10)';
+  ctx.lineWidth = 1;
+  const g = 32;
+  const ox = (t*0.3)%g, oy = (t*0.2)%g;
+  for(let x=-ox;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=-oy;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // enemies
+  for(const e of enemies){
+    const dx=P.x-e.x, dy=P.y-e.y, d=Math.hypot(dx,dy)||1;
+    e.x += dx/d*e.spd; e.y += dy/d*e.spd;
+    ctx.fillStyle = e.c;
+    ctx.shadowColor = e.c; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,7); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // auto-fire at nearest
+  if(t % 14 === 0 && enemies.length){
+    let near=enemies[0], best=1e9;
+    for(const e of enemies){const dd=(e.x-P.x)**2+(e.y-P.y)**2; if(dd<best){best=dd;near=e;}}
+    const a=Math.atan2(near.y-P.y, near.x-P.x);
+    for(let i=-1;i<=1;i++){
+      const aa=a+i*0.18;
+      shots.push({x:P.x,y:P.y,vx:Math.cos(aa)*5,vy:Math.sin(aa)*5,life:60});
+    }
+  }
+  // shots
+  for(let i=shots.length-1;i>=0;i--){
+    const s=shots[i]; s.x+=s.vx; s.y+=s.vy; s.life--;
+    ctx.fillStyle='#c9f24a'; ctx.shadowColor='#c9f24a'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(s.x,s.y,2.5,0,7); ctx.fill(); ctx.shadowBlur=0;
+    // collide
+    for(let j=enemies.length-1;j>=0;j--){
+      const e=enemies[j];
+      if((e.x-s.x)**2+(e.y-s.y)**2 < (e.r+3)**2){
+        xps.push({x:e.x,y:e.y,life:40});
+        enemies.splice(j,1); shots.splice(i,1); break;
+      }
+    }
+    if(s.life<=0) shots.splice(i,1);
+  }
+  // xp motes
+  for(let i=xps.length-1;i>=0;i--){
+    const p=xps[i]; p.life--;
+    ctx.fillStyle='rgba(255,177,61,'+(p.life/40)+')';
+    ctx.beginPath(); ctx.arc(p.x,p.y,3,0,7); ctx.fill();
+    if(p.life<=0) xps.splice(i,1);
+  }
+
+  // player
+  ctx.fillStyle='#46e3d0'; ctx.shadowColor='#46e3d0'; ctx.shadowBlur=14;
+  ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,7); ctx.fill();
+  ctx.shadowBlur=0;
+  // player ring
+  ctx.strokeStyle='rgba(70,227,208,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(P.x,P.y,P.r+5,0,7); ctx.stroke();
+
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ticking score
+const scoreEl = document.getElementById('score');
+let sc = 14820;
+setInterval(()=>{ sc += Math.floor(Math.random()*40); scoreEl.textContent = sc.toLocaleString(); }, 700);
+
+// log + pipeline progress demo
+setTimeout(()=>{
+  const log = document.getElementById('log');
+  const add = (html)=>{ const d=document.createElement('div'); d.className='ln'; d.innerHTML=html; log.appendChild(d); log.scrollTop=log.scrollHeight; };
+  add('<span class="t">12:04:10</span> qa <span class="ok">passed</span> · player reachable, enemies spawn, fps 60');
+  const stages = document.querySelectorAll('.stage');
+  stages[3].classList.remove('active'); stages[3].classList.add('done');
+  stages[3].querySelector('.st').innerHTML = '<span class="tick"></span>passed';
+  setTimeout(()=>{
+    add('<span class="t">12:04:11</span> <span class="ok">done</span> artifact committed · run v4 · score 94');
+  }, 900);
+}, 2600);
+</script>
+</body>
+</html>

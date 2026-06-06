@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Forge — Play</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#15140f; --ink:#ecebe4; --muted:#8f8c82; --faint:#5f5d55;
+    --line:rgba(255,255,255,0.1); --glass:rgba(255,255,255,0.06);
+    --sans:"Schibsted Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; overflow: hidden; display: flex; flex-direction: column; }
+
+  .top { height: 52px; display: flex; align-items: center; gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--line); }
+  .top .word { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+  .top .word b { color: #aebf86; }
+  .top .ttl { font-size: 14px; color: var(--ink); }
+  .top .gen { font-size: 12px; color: var(--muted); }
+  .top .end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .top .end button { background: var(--glass); border: 1px solid var(--line); color: var(--ink); border-radius: 9px; padding: 7px 12px; font-family: var(--sans); font-size: 12.5px; cursor: pointer; transition: background .15s; }
+  .top .end button:hover { background: rgba(255,255,255,0.12); }
+
+  .stagewrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 26px; min-height: 0; }
+  .frame { position: relative; height: 100%; max-height: 100%; aspect-ratio: 3/2; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 80px -30px #000, 0 0 0 1px var(--line); }
+  #game { display: block; width: 100%; height: 100%; }
+
+  .hud { position: absolute; top: 18px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+  .hp { width: 180px; }
+  .hp .lbl { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.55); margin-bottom: 5px; }
+  .hp .track { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+  .hp .fill { height: 100%; width: 76%; background: linear-gradient(90deg,#c2a77f,#aebf86); border-radius: 4px; transition: width .3s; }
+  .wave { text-align: right; }
+  .wave .lbl { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+  .wave .big { font-size: 26px; font-weight: 300; line-height: 1; margin-top: 4px; }
+
+  .ctrls { position: absolute; bottom: 18px; left: 20px; right: 20px; display: flex; align-items: center; gap: 14px; opacity: 0; transition: opacity .25s; }
+  .frame:hover .ctrls { opacity: 1; }
+  .cb { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: rgba(0,0,0,0.4); color: #fff; cursor: pointer; display: grid; place-items: center; backdrop-filter: blur(6px); }
+  .cb.primary { background: #aebf86; color: #16170f; border-color: #aebf86; }
+  .bar { flex: 1; height: 3px; border-radius: 3px; background: rgba(255,255,255,0.15); position: relative; }
+  .bar::after { content:""; position: absolute; inset: 0 62% 0 0; background: #aebf86; border-radius: 3px; }
+  .hint { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+  .foot { height: 40px; display: flex; align-items: center; justify-content: center; gap: 20px; color: var(--faint); font-size: 12px; border-top: 1px solid var(--line); }
+  .foot kbd { background: var(--glass); border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px; color: var(--muted); font-family: var(--sans); font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <span class="word">For<b>ge</b></span>
+    <span class="ttl" id="ttl">Coastal Run</span>
+    <span class="gen" id="gen">survivor · top-down</span>
+    <div class="end">
+      <button id="restart">↺ Restart</button>
+      <button id="back">← Back to studio</button>
+    </div>
+  </div>
+
+  <div class="stagewrap">
+    <div class="frame">
+      <canvas id="game"></canvas>
+      <div class="hud">
+        <div class="hp"><div class="lbl">HP</div><div class="track"><div class="fill" id="hpfill"></div></div></div>
+        <div class="wave"><div class="lbl">Wave 3 · 0:42</div><div class="big" id="score">14,820</div></div>
+      </div>
+      <div class="ctrls">
+        <button class="cb primary" id="pp">❚❚</button>
+        <button class="cb" id="rs">↺</button>
+        <div class="bar"></div>
+        <span class="hint">WASD / arrows to move · auto-fire</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>Playing in a dedicated window</span>
+    <span><kbd>P</kbd> pause</span>
+    <span><kbd>R</kbd> restart</span>
+    <span><kbd>Esc</kbd> close</span>
+  </div>
+
+<script>
+const q = new URLSearchParams(location.search);
+const cfg = {
+  title: q.get('title') || 'Coastal Run',
+  genre: q.get('genre') || 'survivor · top-down',
+  field: q.get('field') || '#e7e4db',
+  player: q.get('player') || '#5f6b4d',
+  enemies: [ q.get('e0')||'#c2a77f', q.get('e1')||'#8ea1ab', q.get('e2')||'#b89aa0' ],
+};
+document.getElementById('ttl').textContent = cfg.title;
+document.getElementById('gen').textContent = cfg.genre;
+document.title = 'Forge — ' + cfg.title;
+
+const cv=document.getElementById('game'); const ctx=cv.getContext('2d'); let W,H;
+function resize(){ const r=cv.getBoundingClientRect(); cv.width=r.width*devicePixelRatio; cv.height=r.height*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); W=r.width; H=r.height; }
+new ResizeObserver(resize).observe(cv); resize();
+
+let P, en, sh, xp, t, paused=false;
+function reset(){ P={x:0,y:0,r:8}; en=[]; sh=[]; xp=[]; t=0; }
+reset();
+
+const keys={};
+addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true;
+  if(e.key.toLowerCase()==='p') togglePause();
+  if(e.key.toLowerCase()==='r') reset();
+  if(e.key==='Escape') window.close();
+});
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+function togglePause(){ paused=!paused; document.getElementById('pp').textContent = paused ? '▶' : '❚❚'; if(!paused) loop(); }
+document.getElementById('pp').addEventListener('click', togglePause);
+document.getElementById('rs').addEventListener('click', reset);
+document.getElementById('rs').addEventListener('click', reset);
+document.getElementById('restart').addEventListener('click', reset);
+document.getElementById('back').addEventListener('click', ()=>window.close());
+
+function spawn(){ const e=Math.floor(Math.random()*4); let x,y;
+  if(e===0){x=0;y=Math.random()*H;} else if(e===1){x=W;y=Math.random()*H;} else if(e===2){x=Math.random()*W;y=0;} else {x=Math.random()*W;y=H;}
+  en.push({x,y,c:cfg.enemies[Math.floor(Math.random()*3)],s:0.5+Math.random()*0.55,r:6+Math.random()*4}); }
+
+let manual=false;
+function loop(){
+  if(paused) return;
+  t++;
+  if(P.x===0&&P.y===0){ P.x=W/2; P.y=H/2; }
+  // movement: WASD/arrows, else gentle autopilot
+  const sp=2.6; let mx=0,my=0;
+  if(keys['a']||keys['arrowleft'])mx-=1; if(keys['d']||keys['arrowright'])mx+=1;
+  if(keys['w']||keys['arrowup'])my-=1; if(keys['s']||keys['arrowdown'])my+=1;
+  if(mx||my){ manual=true; const d=Math.hypot(mx,my); P.x+=mx/d*sp; P.y+=my/d*sp; }
+  else if(!manual){ P.x=W/2+Math.cos(t*0.015)*Math.min(W,H)*0.22; P.y=H/2+Math.sin(t*0.02)*Math.min(W,H)*0.17; }
+  P.x=Math.max(P.r,Math.min(W-P.r,P.x)); P.y=Math.max(P.r,Math.min(H-P.r,P.y));
+
+  if(t%24===0 && en.length<34) spawn();
+
+  ctx.fillStyle=cfg.field; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(38,36,31,0.04)'; ctx.lineWidth=1; const g=46, ox=(t*0.25)%g, oy=(t*0.18)%g;
+  for(let x=-ox;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=-oy;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  for(const e of en){ const dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy)||1; e.x+=dx/d*e.s; e.y+=dy/d*e.s;
+    ctx.fillStyle=e.c; ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,7); ctx.fill(); }
+
+  if(t%13===0 && en.length){ let n=en[0],b=1e9; for(const e of en){const dd=(e.x-P.x)**2+(e.y-P.y)**2; if(dd<b){b=dd;n=e;}}
+    const a=Math.atan2(n.y-P.y,n.x-P.x); for(let i=-1;i<=1;i++){const aa=a+i*0.16; sh.push({x:P.x,y:P.y,vx:Math.cos(aa)*5,vy:Math.sin(aa)*5,l:64});} }
+  for(let i=sh.length-1;i>=0;i--){ const s=sh[i]; s.x+=s.vx; s.y+=s.vy; s.l--;
+    ctx.fillStyle=cfg.player; ctx.beginPath(); ctx.arc(s.x,s.y,2.6,0,7); ctx.fill();
+    for(let j=en.length-1;j>=0;j--){ const e=en[j]; if((e.x-s.x)**2+(e.y-s.y)**2<(e.r+3)**2){ xp.push({x:e.x,y:e.y,l:40}); en.splice(j,1); sh.splice(i,1); score+=10; break; } }
+    if(s.l<=0) sh.splice(i,1); }
+  for(let i=xp.length-1;i>=0;i--){ const p=xp[i]; p.l--; ctx.fillStyle='rgba(174,191,134,'+(p.l/40*0.7)+')'; ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,7); ctx.fill(); if(p.l<=0) xp.splice(i,1); }
+
+  ctx.fillStyle=cfg.player; ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,7); ctx.fill();
+  ctx.strokeStyle=cfg.player+'55'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+6,0,7); ctx.stroke();
+
+  requestAnimationFrame(loop);
+}
+let score=14820; const scEl=document.getElementById('score');
+setInterval(()=>{ if(!paused){ score+=Math.floor(Math.random()*30); scEl.textContent=score.toLocaleString(); } }, 600);
+loop();
+</script>
+</body>
+</html>

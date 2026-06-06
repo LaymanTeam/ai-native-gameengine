@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0c0c0e;
+    --raise: #131316;
+    --ink: #ecebe6;
+    --muted: #8a8a84;
+    --faint: #56564f;
+    --hair: rgba(255,255,255,0.07);
+    --hair-2: rgba(255,255,255,0.04);
+    --accent: #c4e070;        /* used sparingly */
+    --accent-dim: #7e9143;
+    --serif: "Instrument Serif", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    overflow: hidden;
+  }
+  /* a single, very soft light source. no grids, no grain. */
+  body::before {
+    content:""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(1100px 700px at 50% -20%, rgba(196,224,112,0.05), transparent 60%);
+  }
+
+  .app { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-rows: 64px 1fr; }
+
+  /* ---------- quiet top menu ---------- */
+  .bar { display: flex; align-items: center; padding: 0 32px; }
+  .word { font-family: var(--serif); font-size: 25px; letter-spacing: 0.01em; }
+  .word i { color: var(--accent); font-style: italic; }
+  nav { margin-left: 48px; display: flex; gap: 30px; }
+  nav a {
+    color: var(--faint); text-decoration: none; font-size: 12px; letter-spacing: 0.04em;
+    padding-bottom: 2px; transition: color .25s; cursor: pointer;
+  }
+  nav a:hover { color: var(--muted); }
+  nav a.on { color: var(--ink); }
+  .bar .end { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+  .quiet { color: var(--faint); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+  .live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .85; }
+  .me { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--hair);
+        display: grid; place-items: center; font-family: var(--serif); font-size: 14px; color: var(--muted); }
+
+  /* ---------- stage ---------- */
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    min-height: 0;
+  }
+
+  .center {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 8px 40px 36px;
+    min-height: 0;
+  }
+
+  /* the game is the hero — floating, soft */
+  .screen {
+    position: relative;
+    width: 100%;
+    max-width: 760px;
+    aspect-ratio: 16 / 10;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #08080a;
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,0.9), 0 0 0 1px var(--hair);
+    animation: rise .8s cubic-bezier(.2,.8,.2,1) both;
+  }
+  #game { display: block; width: 100%; height: 100%; }
+
+  /* minimal in-screen labels only — no chrome */
+  .corner {
+    position: absolute; top: 18px; left: 20px; right: 20px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    pointer-events: none;
+  }
+  .corner .ttl { font-family: var(--serif); font-size: 19px; color: rgba(255,255,255,0.9); }
+  .corner .sc { font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; }
+
+  /* hover reveals transport — hidden until needed */
+  .transport {
+    position: absolute; bottom: 0; left: 0; right: 0; padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.55));
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  .screen:hover .transport { opacity: 1; pointer-events: auto; }
+  .tbtn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.18);
+          background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; display: grid; place-items: center; font-size: 11px; backdrop-filter: blur(4px); }
+  .track { flex: 1; height: 2px; background: rgba(255,255,255,0.15); border-radius: 2px; position: relative; }
+  .track::after { content:""; position:absolute; inset: 0 62% 0 0; background: var(--accent); border-radius: 2px; }
+
+  /* ---------- the command bar: one calm input ---------- */
+  .command {
+    width: 100%; max-width: 760px;
+    margin-top: 26px;
+    display: flex; align-items: center; gap: 4px;
+    border-bottom: 1px solid var(--hair);
+    padding-bottom: 4px;
+    animation: rise .8s .1s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .command:focus-within { border-color: var(--accent-dim); }
+  .command .glyph { color: var(--faint); font-family: var(--serif); font-size: 22px; padding: 0 12px 0 4px; }
+  .command input {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: var(--ink); font-family: var(--mono); font-size: 14px; padding: 14px 0;
+  }
+  .command input::placeholder { color: var(--faint); }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 50%; border: 0; background: transparent;
+    color: var(--muted); cursor: pointer; display: grid; place-items: center; transition: color .2s;
+  }
+  .icon-btn:hover { color: var(--ink); }
+  .go {
+    margin-left: 6px; height: 38px; padding: 0 22px; border-radius: 999px; border: 0;
+    background: var(--accent); color: #1a1f0c; cursor: pointer;
+    font-family: var(--serif); font-size: 16px; letter-spacing: 0.02em;
+    transition: transform .12s, filter .2s;
+  }
+  .go:hover { filter: brightness(1.07); transform: translateY(-1px); }
+
+  /* segmented mode — text only, underline active. no boxes. */
+  .meta-row {
+    width: 100%; max-width: 760px; margin-top: 16px;
+    display: flex; align-items: center; gap: 26px;
+    animation: rise .8s .18s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .modes { display: flex; gap: 20px; }
+  .modes button {
+    background: 0; border: 0; cursor: pointer; color: var(--faint);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; padding: 4px 0;
+    border-bottom: 1px solid transparent; transition: color .2s, border-color .2s;
+  }
+  .modes button:hover { color: var(--muted); }
+  .modes button.on { color: var(--ink); border-color: var(--accent); }
+  .meta-row .sep { width: 1px; height: 16px; background: var(--hair); }
+  .locks-mini { display: flex; gap: 14px; align-items: center; color: var(--faint); font-size: 11px; }
+  .lk { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color .2s; }
+  .lk:hover { color: var(--muted); }
+  .lk.on { color: var(--ink); }
+  .lk .b { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .5; }
+  .lk.on .b { opacity: 1; background: var(--accent); }
+
+  /* ---------- right: calm sidecar, lots of air ---------- */
+  .side {
+    border-left: 1px solid var(--hair-2);
+    padding: 34px 28px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 34px;
+    animation: rise .8s .12s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .side::-webkit-scrollbar { width: 0; }
+  .cap { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--faint); margin-bottom: 16px; }
+
+  .spec-title { font-family: var(--serif); font-size: 28px; line-height: 1.05; margin-bottom: 4px; }
+  .spec-sub { color: var(--muted); font-size: 12px; }
+
+  /* spec shown as quiet rows, not cards */
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--hair-2);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row .rk { color: var(--muted); font-size: 12px; }
+  .row .rv { color: var(--ink); font-size: 12px; }
+  .row .rv.serif { font-family: var(--serif); font-size: 16px; }
+
+  .dots { display: flex; gap: 6px; }
+  .dotc { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); }
+
+  /* single distilled score — one number, calm ring */
+  .score-wrap { display: flex; align-items: center; gap: 18px; }
+  .ring { width: 64px; height: 64px; position: relative; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .n { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--serif); font-size: 22px; }
+  .score-wrap .sd { font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .score-wrap .sd b { color: var(--ink); font-weight: 400; }
+
+  /* a thin history strip — minimal */
+  .hist { display: flex; flex-direction: column; gap: 2px; }
+  .h {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 0; color: var(--muted); font-size: 12px; cursor: pointer;
+    border-bottom: 1px solid var(--hair-2); transition: color .2s;
+  }
+  .h:hover { color: var(--ink); }
+  .h.on { color: var(--ink); }
+  .h .hr { color: var(--faint); font-size: 11px; }
+  .h.on .hr { color: var(--accent); }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <div class="word">For<i>ge</i></div>
+    <nav>
+      <a class="on">Studio</a>
+      <a>Schema</a>
+      <a>Evals</a>
+    </nav>
+    <div class="end">
+      <span class="quiet"><span class="live"></span> generating</span>
+      <div class="me">T</div>
+    </div>
+  </header>
+
+  <div class="stage">
+
+    <!-- hero -->
+    <main class="center">
+      <div class="screen">
+        <canvas id="game"></canvas>
+        <div class="corner">
+          <span class="ttl">Neon Courier</span>
+          <span class="sc" id="sc">wave 3 · 14,820</span>
+        </div>
+        <div class="transport">
+          <button class="tbtn">❚❚</button>
+          <button class="tbtn">↺</button>
+          <div class="track"></div>
+          <button class="tbtn">⤢</button>
+        </div>
+      </div>
+
+      <div class="command">
+        <span class="glyph">›</span>
+        <input value="A neon-noir survivor: a rogue courier dodging drone swarms through rain-slick alleys" spellcheck="false" />
+        <button class="icon-btn" title="voice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg>
+        </button>
+        <button class="go">Forge</button>
+      </div>
+
+      <div class="meta-row">
+        <div class="modes">
+          <button class="on">Full</button>
+          <button>Balance</button>
+          <button>Style</button>
+        </div>
+        <span class="sep"></span>
+        <div class="locks-mini">
+          <span style="color:var(--faint)">lock</span>
+          <span class="lk on"><span class="b"></span>palette</span>
+          <span class="lk"><span class="b"></span>player</span>
+          <span class="lk on"><span class="b"></span>enemies</span>
+          <span class="lk"><span class="b"></span>waves</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- calm sidecar -->
+    <aside class="side">
+      <section>
+        <div class="spec-title">Neon Courier</div>
+        <div class="spec-sub">survivor · top-down · neon-noir</div>
+      </section>
+
+      <section>
+        <div class="cap">Spec</div>
+        <div class="rows">
+          <div class="row"><span class="rk">Palette</span>
+            <span class="dots">
+              <i class="dotc" style="background:#0c1020"></i>
+              <i class="dotc" style="background:#ff3d8b"></i>
+              <i class="dotc" style="background:#46e3d0"></i>
+              <i class="dotc" style="background:#ffb13d"></i>
+            </span>
+          </div>
+          <div class="row"><span class="rk">Player</span><span class="rv serif">120 hp · 2.4×</span></div>
+          <div class="row"><span class="rk">Enemies</span><span class="rv">3 types · 1 boss</span></div>
+          <div class="row"><span class="rk">Run length</span><span class="rv serif">3:00</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="cap">Quality</div>
+        <div class="score-wrap">
+          <div class="ring">
+            <svg width="64" height="64">
+              <circle cx="32" cy="32" r="28" stroke="rgba(255,255,255,0.08)" stroke-width="3" fill="none"/>
+              <circle cx="32" cy="32" r="28" stroke="#c4e070" stroke-width="3" fill="none"
+                      stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="11"/>
+            </svg>
+            <span class="n">94</span>
+          </div>
+          <div class="sd">
+            <b>Playable</b>, on-theme,<br>balanced curve.<br>
+            <span style="color:var(--faint)">roster diversity 71</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="cap">History</div>
+        <div class="hist">
+          <div class="h on">Neon Courier <span class="hr">v4 · 94</span></div>
+          <div class="h">Neon Courier <span class="hr">v3 · 88</span></div>
+          <div class="h">Rust Harvest <span class="hr">v2 · 81</span></div>
+          <div class="h">Bakery Brawl <span class="hr">v1 · 76</span></div>
+        </div>
+      </section>
+    </aside>
+
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let W,H;
+function resize(){ const r=cv.getBoundingClientRect(); cv.width=r.width*devicePixelRatio; cv.height=r.height*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); W=r.width; H=r.height; }
+new ResizeObserver(resize).observe(cv); resize();
+
+const P={x:0,y:0,r:6}; const en=[]; const sh=[]; const xp=[]; let t=0;
+function spawn(){ const e=Math.floor(Math.random()*4); let x,y;
+  if(e===0){x=0;y=Math.random()*H;} else if(e===1){x=W;y=Math.random()*H;} else if(e===2){x=Math.random()*W;y=0;} else {x=Math.random()*W;y=H;}
+  const k=[{c:'#ff3d8b',s:0.5,r:5},{c:'#7a5cff',s:0.85,r:4.5},{c:'#ffb13d',s:0.38,r:8}][Math.floor(Math.random()*3)];
+  en.push({x,y,...k}); }
+function loop(){ t++;
+  const cx=W/2,cy=H/2;
+  P.x=cx+Math.cos(t*0.016)*Math.min(W,H)*0.2; P.y=cy+Math.sin(t*0.022)*Math.min(W,H)*0.16;
+  if(t%30===0 && en.length<22) spawn();
+  ctx.fillStyle='#0a0a0e'; ctx.fillRect(0,0,W,H);
+  // very faint floor
+  ctx.strokeStyle='rgba(255,255,255,0.03)'; ctx.lineWidth=1; const g=40, ox=(t*0.25)%g, oy=(t*0.18)%g;
+  for(let x=-ox;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=-oy;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  for(const e of en){ const dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy)||1; e.x+=dx/d*e.s; e.y+=dy/d*e.s;
+    ctx.fillStyle=e.c; ctx.shadowColor=e.c; ctx.shadowBlur=8; ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,7); ctx.fill(); ctx.shadowBlur=0; }
+  if(t%16===0 && en.length){ let n=en[0],b=1e9; for(const e of en){const dd=(e.x-P.x)**2+(e.y-P.y)**2; if(dd<b){b=dd;n=e;}}
+    const a=Math.atan2(n.y-P.y,n.x-P.x); for(let i=-1;i<=1;i++){const aa=a+i*0.16; sh.push({x:P.x,y:P.y,vx:Math.cos(aa)*4.6,vy:Math.sin(aa)*4.6,l:60});} }
+  for(let i=sh.length-1;i>=0;i--){ const s=sh[i]; s.x+=s.vx; s.y+=s.vy; s.l--;
+    ctx.fillStyle='#c4e070'; ctx.shadowColor='#c4e070'; ctx.shadowBlur=6; ctx.beginPath(); ctx.arc(s.x,s.y,2.2,0,7); ctx.fill(); ctx.shadowBlur=0;
+    for(let j=en.length-1;j>=0;j--){ const e=en[j]; if((e.x-s.x)**2+(e.y-s.y)**2<(e.r+3)**2){ xp.push({x:e.x,y:e.y,l:36}); en.splice(j,1); sh.splice(i,1); break; } }
+    if(s.l<=0) sh.splice(i,1); }
+  for(let i=xp.length-1;i>=0;i--){ const p=xp[i]; p.l--; ctx.fillStyle='rgba(255,177,61,'+(p.l/36)+')'; ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,7); ctx.fill(); if(p.l<=0) xp.splice(i,1); }
+  ctx.fillStyle='#46e3d0'; ctx.shadowColor='#46e3d0'; ctx.shadowBlur=12; ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,7); ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(70,227,208,0.35)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+5,0,7); ctx.stroke();
+  requestAnimationFrame(loop); }
+loop();
+
+let sc=14820; const el=document.getElementById('sc');
+setInterval(()=>{ sc+=Math.floor(Math.random()*40); el.textContent='wave 3 · '+sc.toLocaleString(); },800);
+</script>
+</body>
+</html>
