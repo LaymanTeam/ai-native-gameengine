@@ -3,3 +3,8 @@ node_modules/
 dist/
 .env
 .env*.local
+
+# Claude Code agent worktrees — never commit
+.claude/worktrees/
+.claude/worktrees-trash/
+.next-trash-*/
