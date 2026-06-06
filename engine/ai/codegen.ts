@@ -109,12 +109,7 @@ export async function generateGameHtml(gdd: GameDesignDocument): Promise<{ html:
       { role: 'system', content: 'You are an expert game programmer. Output only a single runnable HTML file.' },
       { role: 'user', content: prompt },
     ]);
-    const text = typeof res.content === 'string'
-      ? res.content
-      : Array.isArray(res.content)
-        ? res.content.map((b) => (typeof b === 'string' ? b : (b && typeof b === 'object' && 'text' in b ? String((b as { text: unknown }).text ?? '') : ''))).join('')
-        : '';
-    const html = extractHtml(text);
+    const html = extractHtml(messageText(res));
     if (html) {
       console.log(`${CODEGEN_LOG_PREFIX} model produced HTML (${html.length} chars)`);
       return { html, source: 'model' };
@@ -124,4 +119,49 @@ export async function generateGameHtml(gdd: GameDesignDocument): Promise<{ html:
     console.error(`${CODEGEN_LOG_PREFIX} model codegen failed; using template`, error);
   }
   return { html: buildLocalGameHtml(gdd), source: 'template' };
+}
+
+/** Flatten a LangChain message's content (string or content-block array) to text. */
+function messageText(res: { content: unknown }): string {
+  if (typeof res.content === 'string') return res.content;
+  if (Array.isArray(res.content)) {
+    return res.content
+      .map((b) => (typeof b === 'string' ? b : (b && typeof b === 'object' && 'text' in b ? String((b as { text: unknown }).text ?? '') : '')))
+      .join('');
+  }
+  return '';
+}
+
+/**
+ * Apply a plain-language change to an existing single-file game (the tweak loop). Returns the
+ * edited HTML when the model succeeds; otherwise the original unchanged (e.g. no key / failure).
+ */
+export async function tweakGameHtml(
+  currentHtml: string,
+  gdd: GameDesignDocument,
+  request: string,
+): Promise<{ html: string; source: 'model' | 'unchanged' }> {
+  if (!process.env['GOOGLE_API_KEY']) return { html: currentHtml, source: 'unchanged' };
+  try {
+    const model = createCoderModel();
+    const prompt =
+      `Apply this change to the game: "${request}".\n\n` +
+      'Rules: keep it a COMPLETE self-contained single-file HTML document; preserve everything that ' +
+      'already works (controls, HUD, win/lose, restart) unless the change requires otherwise; do not ' +
+      'add external resources or imports. Output ONLY the full updated HTML document — no commentary.\n\n' +
+      `(Game: ${gdd.title} — ${gdd.genre}.)\n\nCURRENT GAME HTML:\n${currentHtml}`;
+    const res = await model.invoke([
+      { role: 'system', content: 'You are an expert game programmer editing a single-file HTML game. Output only the full updated HTML file.' },
+      { role: 'user', content: prompt },
+    ]);
+    const html = extractHtml(messageText(res));
+    if (html) {
+      console.log(`${CODEGEN_LOG_PREFIX} tweak produced HTML (${html.length} chars)`);
+      return { html, source: 'model' };
+    }
+    console.warn(`${CODEGEN_LOG_PREFIX} tweak output unusable; keeping current`);
+  } catch (error) {
+    console.error(`${CODEGEN_LOG_PREFIX} tweak failed; keeping current`, error);
+  }
+  return { html: currentHtml, source: 'unchanged' };
 }

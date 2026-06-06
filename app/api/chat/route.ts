@@ -8,7 +8,7 @@
  */
 import { isAIMessageChunk } from '@langchain/core/messages';
 import { createDirectorAgent, directorThreadConfig } from '../../../engine/ai/agents/director';
-import { hasPendingDesign, localBuildTurn, localDesignTurn, type EngineEvent } from '../../../engine/ai/tool-definitions';
+import { hasBuild, hasPendingDesign, localBuildTurn, localDesignTurn, localTweakTurn, type EngineEvent } from '../../../engine/ai/tool-definitions';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -54,10 +54,14 @@ export async function POST(req: Request): Promise<Response> {
         // Keyless dev path: without GOOGLE_API_KEY the Gemini director can't run, so run the
         // design phase locally so the engine still produces a real artifact (the GDD).
         if (!process.env['GOOGLE_API_KEY']) {
-          const wantsBuild = /^\s*(build|go|yes|make it|play|approve|ship|generate)\b/i.test(message);
-          console.log(`${ROUTE_LOG_PREFIX} no GOOGLE_API_KEY — keyless ${wantsBuild && hasPendingDesign() ? 'build' : 'design'} turn`);
-          const summary = wantsBuild && hasPendingDesign()
-            ? await localBuildTurn(emit)
+          const wantsBuild = /^\s*(build|go|yes|approve|ship|generate)\b/i.test(message);
+          const wantsTweak = /\b(make it|add|remove|change|faster|slower|harder|easier|more|less|bigger|smaller|color|boss|tweak)\b/i.test(message);
+          const mode = wantsBuild && hasPendingDesign() ? 'build'
+            : wantsTweak && hasBuild() ? 'tweak'
+            : 'design';
+          console.log(`${ROUTE_LOG_PREFIX} no GOOGLE_API_KEY — keyless ${mode} turn`);
+          const summary = mode === 'build' ? await localBuildTurn(emit)
+            : mode === 'tweak' ? await localTweakTurn(emit, message)
             : await localDesignTurn(emit, message);
           for (const word of summary.split(/(\s+)/)) emit({ type: 'token', text: word });
           emit({ type: 'done' });

@@ -26,6 +26,8 @@ const SYSTEM_PROMPT =
   'summarize it and ask the user to approve. ' +
   'Once the user approves the design, call build_game to generate the actual playable game and ' +
   'embed it for them to play; then invite tweaks. ' +
+  'When the user asks to change the built game (e.g. "make it harder", "add a boss", "neon colors"), ' +
+  'call tweak_game with their request — it edits the current build and re-embeds it. ' +
   'Be concise and concrete; confirm scope before generating.';
 
 // Module scope: shared across warm invocations so threads keep their history.

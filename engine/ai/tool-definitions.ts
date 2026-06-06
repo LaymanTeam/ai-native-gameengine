@@ -13,7 +13,7 @@ import path from 'node:path';
 import { generateImage } from './providers';
 import { buildLocalGdd, gddSchema, renderGddMarkdown } from './agents/designer';
 import type { GameDesignDocument } from './agents/designer';
-import { generateGameHtml } from './codegen';
+import { generateGameHtml, tweakGameHtml } from './codegen';
 
 const TOOLS_LOG_PREFIX = '[engine/ai/tool-definitions]';
 
@@ -35,6 +35,9 @@ export type EmitEvent = (event: EngineEvent) => void;
  * the model re-sending it. Module-scoped (single-user/demo scope; same caveat as the checkpointers).
  */
 let lastDesign: { slug: string; gdd: GameDesignDocument } | null = null;
+
+/** Last built game this server lifetime — the tweak phase edits its HTML in place. */
+let lastBuild: { slug: string; gdd: GameDesignDocument; html: string } | null = null;
 
 function slugify(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'game';
@@ -73,9 +76,32 @@ async function runCodePhase(emit: EmitEvent, slug: string, gdd: GameDesignDocume
   emit({ type: 'tool_start', name: 'code_game', detail: gdd.title });
   const { html, source } = await generateGameHtml(gdd);
   await persistGameHtml(slug, html);
+  lastBuild = { slug, gdd, html };
   emit({ type: 'tool_end', name: 'code_game', ok: true, detail: `${source} · ${html.length} chars` });
   emit({ type: 'play', slug, title: gdd.title });
   return `Built a playable version of "${gdd.title}" (${source} build) — it's embedded above. Play it, then tell me what to tweak.`;
+}
+
+/** Run the tweak phase: apply a plain-language change to the current build and re-embed it. */
+async function runTweakPhase(emit: EmitEvent, request: string): Promise<string> {
+  if (!lastBuild) return 'There is no built game yet — design and build one first, then I can tweak it.';
+  emit({ type: 'tool_start', name: 'tweak_game', detail: request.slice(0, 80) });
+  const { html, source } = await tweakGameHtml(lastBuild.html, lastBuild.gdd, request);
+  await persistGameHtml(lastBuild.slug, html);
+  lastBuild = { ...lastBuild, html };
+  emit({ type: 'tool_end', name: 'tweak_game', ok: source === 'model', detail: source });
+  emit({ type: 'play', slug: lastBuild.slug, title: lastBuild.gdd.title });
+  return source === 'model'
+    ? `Updated "${lastBuild.gdd.title}" — ${request}. The new build is embedded above; tell me what else to change.`
+    : `I couldn't apply that change automatically (the coder model is unavailable). The current build is unchanged.`;
+}
+
+export async function localTweakTurn(emit: EmitEvent, request: string): Promise<string> {
+  return runTweakPhase(emit, request);
+}
+
+export function hasBuild(): boolean {
+  return lastBuild !== null;
 }
 
 /**
@@ -186,5 +212,23 @@ export function makeDirectorTools(emit: EmitEvent) {
     },
   );
 
-  return [generateImageTool, designTool, buildTool];
+  const tweakTool = tool(
+    async ({ request }: { request: string }) => {
+      if (!lastBuild) return 'No build yet — design and build a game first, then I can tweak it.';
+      console.log(`${TOOLS_LOG_PREFIX} tweak_game start: ${request.slice(0, 80)}`);
+      return runTweakPhase(emit, request);
+    },
+    {
+      name: 'tweak_game',
+      description:
+        'Apply a plain-language change to the CURRENT built game (e.g. "make it harder", "add a boss", ' +
+        '"change the colors to neon", "faster enemies") and re-embed the updated build. Use this after ' +
+        'build_game whenever the user asks to change the game.',
+      schema: z.object({
+        request: z.string().describe('The change to make to the current game, in plain language'),
+      }),
+    },
+  );
+
+  return [generateImageTool, designTool, buildTool, tweakTool];
 }
