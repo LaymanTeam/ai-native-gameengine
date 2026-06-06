@@ -8,3 +8,5 @@ dist/
 .claude/worktrees/
 .claude/worktrees-trash/
 .next-trash-*/
+.fuse_hidden*
+tsconfig.tsbuildinfo
