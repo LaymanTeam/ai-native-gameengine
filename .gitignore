@@ -6,3 +6,6 @@ dist/
 
 # AI-generated game output
 generations/
+
+# Playwright MCP scratch output
+.playwright-mcp/
