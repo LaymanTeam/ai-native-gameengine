@@ -53,3 +53,21 @@ OpenGameArt.org — one repository for all three. It hosts 2D/3D art, sound effe
 Wikipedia
 Kenney.nl — also covers all three, and most assets are CC0 (public domain), usable and modifiable without attribution, with a clean consistent style. Browse/search at https://kenney.nl/assets.
 GamineAI
+---
+
+Runtime-generated assets (convention, added 2026-06-06):
+
+assets/** above is for BUILD-TIME assets only — game code imports them via the `@` alias and
+Vite fingerprints them into dist/, so files added after a build are invisible without a rebuild.
+Assets created at PLAY time (intra-AI generation: entities calling Gemini from systems/calls/)
+follow this convention instead:
+
+public/
+- runtime/   # post-build asset drops; Vite copies public/ verbatim → URL-stable at /runtime/<file>
+
+- Generated in the running browser game → persist to RxDB as a data: URL document via
+  engine/storage/runtime-assets.ts (collection "runtimeassets", survives reloads next to saves/).
+- Written on the server/pipeline after the build but without a redeploy → drop the file in
+  public/runtime/ and reference it as /runtime/<file>.
+- Game code resolves any reference through resolveAssetUrl() (data: passthrough, runtime:<file>
+  → /runtime/<file>, imported URLs as-is) so call sites never care which path an asset took.

@@ -2,8 +2,15 @@
  * Creates the generations/<game-name>/ folder tree EXACTLY per generations/info.md
  * (research/, references/, reports/, assets/{sprites,background,images,sfx,music,scenes,fonts,text},
  * systems/{rules,animations,entities,ai,calls,physics,controller}, ui/{components,methods},
- * saves/, config/, render/, tests/, main.ts skeleton). Distinct from vite-creator, which wraps
- * this tree in a Vite project.
+ * saves/, config/, render/, tests/, public/runtime/, main.ts skeleton). Distinct from
+ * vite-creator, which wraps this tree in a Vite project.
+ *
+ * RUNTIME-GENERATED ASSET CONVENTION (info.md "Runtime-generated assets"): assets/** is for
+ * BUILD-TIME assets only — game code imports them via the `@` alias and Vite fingerprints them
+ * into dist/, so anything added after a build is invisible without a rebuild. Assets created at
+ * PLAY time (intra-AI generation) instead go to (a) `public/runtime/` when written before deploy
+ * (Vite copies public/ verbatim, URL-stable at /runtime/<file>), or (b) RxDB as data-URL docs via
+ * engine/storage/runtime-assets.ts when generated in the running browser game.
  */
 import { mkdir, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -44,6 +51,10 @@ export const GAME_TREE: readonly string[] = [
   'config',
   'render',
   'tests',
+  // Runtime-generated asset convention: served verbatim by Vite at /runtime/* (never imported,
+  // never fingerprinted) so post-build asset drops stay URL-stable without a rebuild.
+  'public',
+  'public/runtime',
 ] as const;
 
 /** Files (relative to game root) that the scaffold seeds with skeleton content. */
