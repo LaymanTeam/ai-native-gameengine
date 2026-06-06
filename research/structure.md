@@ -15,7 +15,7 @@ game-gen/                      # the pipeline is the product
 │   │   ├── providers/         #   anthropic.ts, vertex.ts — swappable adapters
 │   │   ├── generate.ts        #   constrained generation against a schema
 │   │   ├── repair.ts          #   feed Zod errors back, bounded retry
-│   │   └── prompts/           #   templates as data, versioned
+│   │   └── prompts/           #   templates as data,versioned
 │   ├── store/                 # ← append-log content store (event-sourced)
 │   │   ├── store.ts           #   ContentStore interface
 │   │   ├── events.ts          #   created / edited / regenerated + provenance
