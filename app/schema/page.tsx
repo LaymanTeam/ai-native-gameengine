@@ -10,14 +10,12 @@ import {
   Badge, Box, Card, ColorInput, Container, Grid, Group, Paper, Progress,
   ScrollArea, Slider, Stack, Text, TextInput, Title,
 } from '@mantine/core';
+import { FALLBACK_SPEC } from '@/engine/frontend/integration/gamespec';
+import type { GameSpec } from '@/engine/frontend/integration/contracts';
 
-interface PlayerSpec { maxHealth: number; speed: number; projectiles: number; cooldownMs: number; }
+type PlayerSpec = GameSpec['player'];
 
-const ENEMIES = [
-  { name: 'Tide Wisp', role: 'shooter · ranged', color: '#8ea1ab', hp: 18, spd: 1.8 },
-  { name: 'Drift Hound', role: 'charger · melee', color: '#c2a77f', hp: 30, spd: 3.1 },
-  { name: 'Harbor Maw', role: 'boss · 90s', color: '#b89aa0', hp: 900, spd: 1.0 },
-];
+const ENEMIES = FALLBACK_SPEC.enemies;
 
 const EVALS = [
   { label: 'Schema validity', value: 100, color: 'sage' },
@@ -42,12 +40,12 @@ function Stat({ label, value, suffix, min, max, step, onChange }: {
 }
 
 export default function SchemaPage() {
-  const [title, setTitle] = useState('Coastal Run');
-  const [theme, setTheme] = useState('calm coastal, soft light');
-  const [palette, setPalette] = useState({ background: '#dfe3da', player: '#7e8b6d', accent: '#c2a77f', danger: '#8ea1ab', xp: '#cbb88f' });
-  const [player, setPlayer] = useState<PlayerSpec>({ maxHealth: 120, speed: 2.4, projectiles: 3, cooldownMs: 640 });
+  const [title, setTitle] = useState(FALLBACK_SPEC.title);
+  const [theme, setTheme] = useState(FALLBACK_SPEC.theme);
+  const [palette, setPalette] = useState(FALLBACK_SPEC.palette);
+  const [player, setPlayer] = useState<PlayerSpec>(FALLBACK_SPEC.player);
 
-  const spec = { title, genre: 'survivor', theme, palette, player, enemies: ENEMIES.length, waves: 9 };
+  const spec = { title, genre: FALLBACK_SPEC.genre, theme, palette, player, enemies: ENEMIES.length, waves: FALLBACK_SPEC.waves };
 
   return (
     <Container size="xl" py={40}>

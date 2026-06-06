@@ -1,35 +1,22 @@
 'use client';
 
 /**
- * Library — a grid of generated games. Mock data for now; real data will come from the
- * content store / Vercel deployments. Thumbnails animate on hover (MiniSim). "New game"
- * routes back to the Studio chat; "Play" opens the game's own window (deployed URL later).
+ * Library — a grid of generated games. Data comes from the integration layer
+ * (engine/frontend/integration/library), so it lights up with the real source when wired.
+ * Thumbnails animate on hover (MiniSim). "New game" routes to the Studio chat; "Play" opens
+ * the game via the deploy seam (deployed URL or the in-app /play/<id> runtime).
  */
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Badge, Box, Button, Container, Group, Paper, SegmentedControl, Stack, Text, TextInput, Title,
 } from '@mantine/core';
-import { MiniSim, type MiniGame } from '@/engine/frontend/components/MiniSim';
+import { MiniSim } from '@/engine/frontend/components/MiniSim';
+import { MOCK_GAMES } from '@/engine/frontend/integration/library';
+import { openGame } from '@/engine/frontend/integration/deploy';
+import type { GameSummary } from '@/engine/frontend/integration/contracts';
 
-interface Game extends MiniGame {
-  id: string;
-  title: string;
-  genre: string;
-  v: string;
-  score: number;
-}
-
-const GAMES: Game[] = [
-  { id: 'coastal', title: 'Coastal Run', genre: 'survivor · top-down', v: 'v4', score: 94, field: '#e7e4db', player: '#5f6b4d', enemies: ['#c2a77f', '#8ea1ab', '#b89aa0'] },
-  { id: 'tide', title: 'Tide Keeper', genre: 'dodger · top-down', v: 'v3', score: 88, field: '#e2e7ea', player: '#4a6470', enemies: ['#9aa7b0', '#cdb89a', '#a9b59c'] },
-  { id: 'ember', title: 'Ember Drift', genre: 'shooter · arena', v: 'v2', score: 84, field: '#e6e2ea', player: '#6b5570', enemies: ['#b29bb6', '#9aa7b0', '#c2a77f'] },
-  { id: 'rust', title: 'Rust Harvest', genre: 'survivor · top-down', v: 'v2', score: 81, field: '#ece2d6', player: '#9a5e46', enemies: ['#c98e6e', '#a7a382', '#bf9a8a'] },
-  { id: 'glass', title: 'Glasswing', genre: 'puzzle · grid', v: 'v1', score: 79, field: '#eef1f3', player: '#5f7c8a', enemies: ['#9aa7b0', '#cdb89a', '#a9b59c'] },
-  { id: 'bakery', title: 'Bakery Brawl', genre: 'collector · arena', v: 'v1', score: 76, field: '#f0e7da', player: '#a0744a', enemies: ['#cda06a', '#b0a07a', '#c89a86'] },
-];
-
-function GameCard({ game }: { game: Game }) {
+function GameCard({ game }: { game: GameSummary }) {
   const [hover, setHover] = useState(false);
   return (
     <Paper
@@ -40,11 +27,11 @@ function GameCard({ game }: { game: Game }) {
       onMouseLeave={() => setHover(false)}
     >
       <Box style={{ position: 'relative', aspectRatio: '16 / 10', background: 'var(--forge-canvas)' }}>
-        <MiniSim game={game} playing={hover} />
-        <Badge variant="default" size="sm" style={{ position: 'absolute', top: 10, left: 10 }}>{game.v}</Badge>
+        <MiniSim game={game.palette} playing={hover} />
+        <Badge variant="default" size="sm" style={{ position: 'absolute', top: 10, left: 10 }}>{game.version}</Badge>
         {hover && (
           <Group gap="xs" justify="center" style={{ position: 'absolute', inset: 0 }}>
-            <Button size="xs" color="dark" radius="md" onClick={() => window.open('about:blank', `play_${game.id}`, 'width=980,height=660')}>▶ Play</Button>
+            <Button size="xs" color="dark" radius="md" onClick={() => openGame(game)}>▶ Play</Button>
             <Button size="xs" variant="default" radius="md" component={Link} href="/">Refine</Button>
           </Group>
         )}
@@ -54,7 +41,7 @@ function GameCard({ game }: { game: Game }) {
         <Group justify="space-between" mt={4}>
           <Text size="sm" c="dimmed">{game.genre}</Text>
           <Group gap={6}>
-            <Box w={7} h={7} style={{ borderRadius: '50%', background: game.player }} />
+            <Box w={7} h={7} style={{ borderRadius: '50%', background: game.palette.player }} />
             <Text size="sm">{game.score}</Text>
           </Group>
         </Group>
@@ -69,7 +56,7 @@ export default function LibraryPage() {
 
   const games = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return GAMES.filter((g) => !q || g.title.toLowerCase().includes(q));
+    return MOCK_GAMES.filter((g) => !q || g.title.toLowerCase().includes(q));
   }, [query]);
 
   return (
@@ -79,7 +66,7 @@ export default function LibraryPage() {
         <Button color="dark" radius="md" component={Link} href="/">＋ New game</Button>
       </Group>
       <Text c="dimmed" mb="xl">
-        <Text span fw={500} c="var(--forge-ink)">{GAMES.length} games</Text> · 4 playable · average score{' '}
+        <Text span fw={500} c="var(--forge-ink)">{MOCK_GAMES.length} games</Text> · 4 playable · average score{' '}
         <Text span fw={500} c="var(--forge-ink)">84</Text>
       </Text>
 

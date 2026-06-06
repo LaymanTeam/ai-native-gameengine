@@ -16,6 +16,8 @@ import {
   ActionIcon, Avatar, Box, Button, Group, Image, Loader, Paper,
   ScrollArea, SegmentedControl, Stack, Text, Textarea, ThemeIcon,
 } from '@mantine/core';
+import type { EngineEvent } from '@/engine/frontend/integration/contracts';
+import { streamChat } from '@/engine/frontend/integration/chat';
 
 const CHAT_LOG_PREFIX = '[engine/frontend/Chat]';
 
@@ -37,14 +39,6 @@ export interface ChatMessage {
   images: GeneratedImageAttachment[];
   steps: ToolStep[];
 }
-
-type SseEvent =
-  | { type: 'token'; text: string }
-  | { type: 'tool_start'; name: string; detail: string }
-  | { type: 'tool_end'; name: string; ok: boolean; detail: string }
-  | { type: 'image'; id: string; dataUrl: string; caption: string }
-  | { type: 'error'; message: string }
-  | { type: 'done' };
 
 const SUGGESTIONS = [
   'A calm coastal survivor where you gather light',
@@ -116,7 +110,7 @@ export function Chat() {
       scrollToBottom();
     };
 
-    const handleEvent = (event: SseEvent): void => {
+    const handleEvent = (event: EngineEvent): void => {
       switch (event.type) {
         case 'token':
           assistantText += event.text;
@@ -158,36 +152,7 @@ export function Chat() {
     };
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, threadId }),
-      });
-      if (!res.ok || !res.body) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`chat route failed status=${res.status} detail=${detail.slice(0, 200)}`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        // SSE frames are separated by a blank line
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop() ?? '';
-        for (const frame of frames) {
-          const dataLine = frame.split('\n').find((line) => line.startsWith('data: '));
-          if (!dataLine) continue;
-          try {
-            handleEvent(JSON.parse(dataLine.slice(6)) as SseEvent);
-          } catch (parseError) {
-            console.error(`${CHAT_LOG_PREFIX} bad SSE frame`, parseError, dataLine.slice(0, 120));
-          }
-        }
-      }
+      await streamChat({ message: content, threadId, onEvent: handleEvent });
     } catch (error) {
       console.error(`${CHAT_LOG_PREFIX} stream error`, error);
       assistantText = assistantText || 'Something went wrong talking to the engine. Please try again.';
