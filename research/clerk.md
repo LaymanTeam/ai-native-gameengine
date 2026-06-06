@@ -1,5 +1,9 @@
 # Clerk.js API Reference (verified against clerk.com/docs)
 
+> ⚠️ **SCOPE IN THIS ENGINE: Clerk does NOT gate the engine app.** It is player identity for
+> MULTIPLAYER inside *generated games* (with sendblue.ts). The middleware/proxy patterns below
+> apply to generated-game code only — never add them to the engine's own `app/` shell.
+
 > Researched 2026-06-06 against https://clerk.com/docs. Clerk's API has churned a lot — middleware is `clerkMiddleware()` (NOT the old `authMiddleware()`), and the 2026 docs now favor `<Show>` over `<SignedIn>/<SignedOut>` and place middleware in `proxy.ts`. Verify against current docs if anything looks off.
 
 ## Next.js setup
