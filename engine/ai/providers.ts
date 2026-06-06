@@ -20,9 +20,14 @@ export function createConversationModel(): ChatGoogleGenerativeAI {
   return new ChatGoogleGenerativeAI({ model, temperature: 0.7, maxRetries: 2 });
 }
 
-/** Coder agent model — strongest reasoning/coding for systems/ and ui/ generation. */
+/**
+ * Coder agent model — code generation for systems/ui.
+ * NOTE: Pro models (gemini-3.1-pro) are `limit: 0` on the Gemini free tier, so codegen would
+ * always 429 and fall back to the template. Default to flash (free-tier capable); override with
+ * GEMINI_CODER_MODEL on a paid plan for stronger code.
+ */
 export function createCoderModel(): ChatGoogleGenerativeAI {
-  const model = 'gemini-3.1-pro-preview';
+  const model = process.env['GEMINI_CODER_MODEL'] || 'gemini-3.5-flash';
   logModelInit('coder', model);
   return new ChatGoogleGenerativeAI({ model, temperature: 0.2, maxRetries: 2 });
 }
