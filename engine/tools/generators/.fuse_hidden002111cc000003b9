@@ -1,7 +1,7 @@
 /**
  * Node-based programmatic pixel sprite generation — the "node based tool to create pixel images
  * via code" branch of generations/info.md assets/sprites. Implements the pixel-sprite-generator
- * algorithm (Mask → Sprite) headlessly with ZERO native deps (do NOT use the abandoned
+ * algorithm (Mask → Sprite) headlessly with node-canvas (do NOT use the abandoned
  * pixel-sprite-generator-nodejs wrapper). Research: research/pixel-sprite-generator.md
  *
  * The algorithm is a faithful, dependency-free re-implementation of zfedoran's
@@ -13,14 +13,13 @@
  *   3. Internal edges (body cells adjacent to empty space) are promoted to border.
  *   4. Each body pixel is coloured in HSL with per-pixel brightness noise, a vertical
  *      shading gradient and per-sprite colour variation; borders are darkened.
- *   5. The result is encoded as a PNG with a pure node:zlib encoder (no node-canvas — the
- *      engine's dependency set is fixed to package.json; native canvas builds are not allowed).
+ *   5. The result is rasterised to a node-canvas ImageData and written as a PNG.
  *
  * RNG is injectable (defaults to Math.random) so generation is deterministic in tests.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { deflateSync } from 'node:zlib';
+import { createCanvas } from 'canvas';
 
 export const PIXELART_LOG_PREFIX = '[engine/tools/generators/pixel-art]';
 
@@ -314,85 +313,32 @@ export function generateSprite(mask: MaskInput, options?: SpriteOptions): Genera
   return { width, height, cells, pixels };
 }
 
-// ---------------------------------------------------------------------------
-// Pure-Node PNG encoding (no native deps): RGBA8 → PNG (IHDR + IDAT/zlib + IEND).
-// ---------------------------------------------------------------------------
-
-const CRC_TABLE: Uint32Array = (() => {
-  const table = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) {
-      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    }
-    table[n] = c >>> 0;
-  }
-  return table;
-})();
-
-function crc32(buf: Buffer): number {
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    const byte = buf[i];
-    if (byte === undefined) continue;
-    crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(data.length, 0);
-  const typeAndData = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(typeAndData), 0);
-  return Buffer.concat([length, typeAndData, crc]);
-}
-
-/**
- * Encode a generated sprite to a PNG Buffer with a pure node:zlib encoder, with optional
- * integer nearest-neighbour scaling (replicated pixels keep the art crisp — research/pixijs.md).
- */
+/** Encode a generated sprite to a PNG Buffer via node-canvas, with optional integer scaling. */
 export function spriteToPngBuffer(sprite: GeneratedSprite, scale = 1): Buffer {
   if (!sprite || !(sprite.pixels instanceof Uint8ClampedArray)) {
     throw new Error(`${PIXELART_LOG_PREFIX} spriteToPngBuffer: invalid sprite`);
   }
   const factor = Number.isInteger(scale) && scale >= 1 ? scale : 1;
-  const outW = sprite.width * factor;
-  const outH = sprite.height * factor;
+  const baseCanvas = createCanvas(2, 2);
+  baseCanvas.width = sprite.width;
+  baseCanvas.height = sprite.height;
+  const ctx = baseCanvas.getContext('2d');
+  const imageData = ctx.createImageData(sprite.width, sprite.height);
+  imageData.data.set(sprite.pixels);
+  ctx.putImageData(imageData, 0, 0);
 
-  // Raw scanlines: each row prefixed with filter byte 0 (None), pixels nearest-neighbour scaled.
-  const raw = Buffer.alloc(outH * (1 + outW * 4));
-  let offset = 0;
-  for (let y = 0; y < outH; y++) {
-    raw[offset++] = 0; // filter: None
-    const srcY = Math.floor(y / factor);
-    for (let x = 0; x < outW; x++) {
-      const srcX = Math.floor(x / factor);
-      const p = (srcY * sprite.width + srcX) * 4;
-      raw[offset++] = sprite.pixels[p] ?? 0;
-      raw[offset++] = sprite.pixels[p + 1] ?? 0;
-      raw[offset++] = sprite.pixels[p + 2] ?? 0;
-      raw[offset++] = sprite.pixels[p + 3] ?? 0;
-    }
+  if (factor === 1) {
+    return baseCanvas.toBuffer('image/png');
   }
 
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(outW, 0);
-  ihdr.writeUInt32BE(outH, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // color type: RGBA
-  ihdr[10] = 0; // compression
-  ihdr[11] = 0; // filter method
-  ihdr[12] = 0; // no interlace
-
-  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  return Buffer.concat([
-    signature,
-    pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', deflateSync(raw)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
+  const scaled = createCanvas(2, 2);
+  scaled.width = sprite.width * factor;
+  scaled.height = sprite.height * factor;
+  const sctx = scaled.getContext('2d');
+  // Nearest-neighbour upscaling keeps pixels crisp (see research/pixijs.md).
+  sctx.imageSmoothingEnabled = false;
+  sctx.drawImage(baseCanvas, 0, 0, scaled.width, scaled.height);
+  return scaled.toBuffer('image/png');
 }
 
 /** Result of writing a sprite PNG to disk. */
