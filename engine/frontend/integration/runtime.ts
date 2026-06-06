@@ -53,8 +53,23 @@ function mountCanvas2D(target: HTMLElement, spec: GameSpec): GameRuntime {
   interface Orb { x: number; y: number; l: number; }
 
   const keys: Record<string, boolean> = {};
-  const onKeyDown = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = true; if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault(); };
-  const onKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
+  // Don't hijack keys while the user is typing in a form field (the composer textarea, etc.) —
+  // otherwise preventDefault() on space/arrows swallows them mid-typing.
+  const isEditable = (el: EventTarget | null): boolean => {
+    const node = el as HTMLElement | null;
+    if (!node || !node.tagName) return false;
+    const tag = node.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable;
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (isEditable(e.target)) return;
+    keys[e.key.toLowerCase()] = true;
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
+  };
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (isEditable(e.target)) return;
+    keys[e.key.toLowerCase()] = false;
+  };
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
 
