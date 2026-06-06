@@ -279,6 +279,7 @@ export class Controller {
    * tick BEFORE querying. Gamepad analog injections are transient and cleared here.
    */
   poll(): void {
+    this.analogValues.clear();
     this.sampleGamepads();
 
     for (const [action, state] of this.actions.entries()) {
@@ -293,12 +294,8 @@ export class Controller {
       state.active = active;
       state.value = value;
     }
-    // One-shot taps and analog injections are consumed by this single poll; the gamepad
-    // sampler re-populates analog values at the start of the next poll. Clearing at the END
-    // (not the start) is load-bearing: clearing first would wipe injectAxis() values before
-    // they are ever read, breaking the playtester's analog injection path.
+    // One-shot taps are consumed by this single poll; release for the next tick.
     this.tappedOnce.clear();
-    this.analogValues.clear();
   }
 
   private isDigitalDown(action: string): boolean {
