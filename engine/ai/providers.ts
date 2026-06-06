@@ -70,56 +70,122 @@ export function createEmbeddings(): GoogleGenerativeAIEmbeddings {
 }
 
 export interface GeneratedImage {
-  /** data: URL (base64 PNG) from the image_url content block. */
+  /** data: URL (base64 PNG) of the generated image. */
   dataUrl: string;
   /** Accompanying text the model produced alongside the image, if any. */
   text: string;
 }
 
+// ---------------------------------------------------------------------------
+// Multimodal GENERATION goes straight to the AI Studio REST API.
+//
+// WHY NOT LANGCHAIN: @langchain/google-genai (≤2.1.x) wraps the legacy
+// @google/generative-ai SDK, and NEITHER supports generationConfig.responseModalities —
+// the option was silently dropped on invoke, so image models always answered text-only
+// and generateImage threw "no image block" on every call. LangChain remains the agent
+// layer (chat/tools/checkpointing); generation-with-modalities uses the same AI Studio
+// key over plain fetch. Same pattern will serve TTS/audio modalities later.
+// ---------------------------------------------------------------------------
+
+const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+/** Injectable fetch (tests run offline against a fake). */
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
+  ok: boolean;
+  status: number;
+  text(): Promise<string>;
+}>;
+
+/** Subset of the AI Studio generateContent response we read. */
+interface GenerateContentResponseLike {
+  candidates?: {
+    content?: {
+      parts?: { text?: string; inlineData?: { mimeType?: string; data?: string } }[];
+    };
+  }[];
+  error?: { message?: string; status?: string };
+}
+
+export interface GenerateImageOptions {
+  pro?: boolean;
+  /** Injected fetch for testing; defaults to globalThis.fetch. */
+  fetchImpl?: FetchLike;
+}
+
 /**
- * Generate an image with Nano Banana and return the first image content block.
- * Throws when no image block is present — the asset-review loop treats that as retryable.
+ * Generate an image with Nano Banana via the AI Studio REST API and return it as a data URL.
+ * Throws when the response carries no inlineData image part — the asset-review loop treats
+ * that as retryable.
  */
-export async function generateImage(prompt: string, opts: { pro?: boolean } = {}): Promise<GeneratedImage> {
+export async function generateImage(prompt: string, opts: GenerateImageOptions = {}): Promise<GeneratedImage> {
   if (!prompt || prompt.trim().length === 0) {
     throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: prompt must be a non-empty string`);
   }
-  const llm = opts.pro ? createImageProModel() : createImageModel();
+  const apiKey = process.env['GOOGLE_API_KEY'];
+  if (!apiKey) {
+    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: GOOGLE_API_KEY is not set`);
+  }
+  const fetchImpl = opts.fetchImpl ?? (globalThis.fetch as unknown as FetchLike | undefined);
+  if (typeof fetchImpl !== 'function') {
+    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: no fetch implementation available`);
+  }
+
+  const model = opts.pro ? 'gemini-3-pro-image' : 'gemini-3.1-flash-image';
   const started = Date.now();
-  console.log(`${PROVIDER_LOG_PREFIX} generateImage start pro=${Boolean(opts.pro)} promptChars=${prompt.length}`);
+  console.log(`${PROVIDER_LOG_PREFIX} generateImage start model=${model} promptChars=${prompt.length}`);
 
-  // responseModalities is required for image output; call-option plumbing varies across
-  // @langchain/google-genai versions — verified against research/langchain-agents-chains-gemini.md.
-  const response = await llm.invoke(prompt, { responseModalities: ['TEXT', 'IMAGE'] } as never);
+  let response: Awaited<ReturnType<FetchLike>>;
+  try {
+    response = await fetchImpl(`${AI_STUDIO_BASE}/${model}:generateContent`, {
+      method: 'POST',
+      // Key travels in a header, never in the URL (avoids key leakage into logs/traces).
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`${PROVIDER_LOG_PREFIX} generateImage network-error model=${model}: ${message}`);
+    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: network error: ${message} (retryable)`);
+  }
 
-  const blocks = Array.isArray(response.content)
-    ? response.content
-    : [{ type: 'text', text: String(response.content ?? '') }];
+  const raw = await response.text();
+  if (!response.ok) {
+    // Redact: log status + a bounded slice of the error body, never the request/key.
+    console.error(`${PROVIDER_LOG_PREFIX} generateImage http-${response.status} model=${model} body=${raw.slice(0, 300)}`);
+    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: HTTP ${response.status} from AI Studio (retryable)`);
+  }
 
+  let parsed: GenerateContentResponseLike;
+  try {
+    parsed = JSON.parse(raw) as GenerateContentResponseLike;
+  } catch {
+    console.error(`${PROVIDER_LOG_PREFIX} generateImage bad-json model=${model} bytes=${raw.length}`);
+    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: unparseable AI Studio response (retryable)`);
+  }
+
+  const parts = parsed.candidates?.[0]?.content?.parts ?? [];
   let dataUrl: string | undefined;
   const texts: string[] = [];
-  for (const block of blocks) {
-    if (!block || typeof block !== 'object') continue;
-    const b = block as Record<string, unknown>;
-    if (b['type'] === 'image_url') {
-      const raw = b['image_url'];
-      const url =
-        typeof raw === 'string'
-          ? raw
-          : typeof (raw as Record<string, unknown> | undefined)?.['url'] === 'string'
-            ? ((raw as Record<string, unknown>)['url'] as string)
-            : undefined;
-      if (url !== undefined && dataUrl === undefined) dataUrl = url;
-    } else if (b['type'] === 'text' && typeof b['text'] === 'string') {
-      texts.push(b['text']);
+  for (const part of parts) {
+    if (part.inlineData?.data && dataUrl === undefined) {
+      const mime = part.inlineData.mimeType ?? 'image/png';
+      dataUrl = `data:${mime};base64,${part.inlineData.data}`;
+    } else if (typeof part.text === 'string') {
+      texts.push(part.text);
     }
   }
 
   const durationMs = Date.now() - started;
   if (dataUrl === undefined) {
-    console.error(`${PROVIDER_LOG_PREFIX} generateImage no-image durationMs=${durationMs} blocks=${blocks.map((x) => (x as { type?: string })?.type).join(',')}`);
-    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: model returned no image block (retryable)`);
+    console.error(
+      `${PROVIDER_LOG_PREFIX} generateImage no-image model=${model} durationMs=${durationMs} ` +
+        `parts=${parts.map((p) => (p.inlineData ? 'inlineData' : p.text !== undefined ? 'text' : 'other')).join(',')}`,
+    );
+    throw new Error(`${PROVIDER_LOG_PREFIX} generateImage: model returned no image part (retryable)`);
   }
-  console.log(`${PROVIDER_LOG_PREFIX} generateImage done durationMs=${durationMs} textChars=${texts.join('').length}`);
+  console.log(`${PROVIDER_LOG_PREFIX} generateImage done model=${model} durationMs=${durationMs} textChars=${texts.join('').length}`);
   return { dataUrl, text: texts.join('\n') };
 }
