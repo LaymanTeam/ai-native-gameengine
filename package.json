@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "for t in $(find engine -name '*.test.ts'); do npx tsx \"$t\" || exit 1; done; echo ALL SUITES GREEN"
   },
   "repository": {
     "type": "git",

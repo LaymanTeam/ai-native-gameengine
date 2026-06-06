@@ -106,6 +106,11 @@ export function isLicenseAcceptable(license: string): { ok: boolean; reason: str
   if (u === 'UNKNOWN') return { ok: false, reason: 'license could not be determined', attributionRequired: false };
   // GPL-2.0-only is incompatible with GPL-3.0; treat bare GPL-2.0 as rejected.
   if (u === 'GPL-2.0') return { ok: false, reason: 'GPL-2.0-only is incompatible with GPL-3.0', attributionRequired: false };
+  // CC-BY-SA: ONLY 4.0 is (one-way) GPLv3-compatible per Creative Commons' compatibility
+  // declaration; ShareAlike 1.0–3.0 cannot be relicensed under GPL-3.0.
+  if (u.startsWith('CC-BY-SA') && u !== 'CC-BY-SA-4.0') {
+    return { ok: false, reason: `${norm}: only CC-BY-SA-4.0 is GPLv3-compatible (one-way)`, attributionRequired: false };
+  }
   const attributionRequired = u.startsWith('CC-BY') || u === 'OFL-1.1' || u === 'MIT' || u === 'BSD';
   const accepted = [
     'CC0-1.0',

@@ -11,7 +11,8 @@ import { createDirectorAgent, directorThreadConfig } from '../../../engine/ai/ag
 import { localDesignTurn, type EngineEvent } from '../../../engine/ai/tool-definitions';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+// Full phase turns (code/verify/deploy) can run long; Fluid Compute allows up to 300s.
+export const maxDuration = 300;
 
 const ROUTE_LOG_PREFIX = '[api/chat]';
 

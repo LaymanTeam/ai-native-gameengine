@@ -10,7 +10,7 @@ An **AI-native game engine**: an AI agent pipeline (Gemini via LangChain.js, hos
 
 ## Current State
 
-Early scaffolding phase, now with a working Next.js 16 (App Router) shell. Implemented: `app/` (Mantine provider layout — **no Clerk gate on the engine UI; Clerk is tooling for generated games**), `app/api/chat/route.ts` (director agent → **SSE** stream: token/tool_start/tool_end/image/error/done events), `engine/ai/providers.ts` (Gemini model factories + image gen), `engine/ai/tool-definitions.ts` (per-request tool factory with event emitter; generate_image), `engine/ai/agents/director.ts` (createAgent + module-scoped MemorySaver checkpointer — conversation history lives server-side keyed by `threadId`; client sends only the new message), `engine/frontend/components/Chat.tsx` (SSE consumer, tool badges, inline images). No branding in the UI yet (pending user decision). Most other `engine/` `.ts` files remain **stubs** — their header comments are the authoritative statement of each module's purpose; read them before implementing.
+All engine modules are implemented (~9k lines + 20 offline test suites). **Architecture ruling (user, 2026-06-06): agent → tools → (chains → subagents).** The director (`engine/ai/agents/director.ts`, createAgent + MemorySaver keyed by `threadId`) sees exactly ONE tool per phase (`engine/ai/tool-definitions.ts`: design_game, set_visual_direction, explore_image, produce_assets, build_game, verify_game, deploy_game). Each phase tool runs a deterministic CHAIN in `engine/ai/pipelines/` (design/assets/build/verify/deploy) that invokes the subagents (researcher, image-reviewer, coder, tester, debugger, logic-evaluator) only where judgment is needed — the director never routes inside a phase. Contracts enforced in code: style bible prepended to every production image prompt (assets chain refuses without one), manifest pre/post gates around the coder, retry budgets hard-bounded, deploy refuses without green `reports/verification.json` (typecheck + manifest + tests + logic coherence + headless playtest via `engine/testing/playtest-runner.ts` and the game's `tests/headless-session.ts` bridge). Phase state lives on disk in the game folder; SSE events (`engine/ai/events.ts`) stream the build trace to the chat. Keyless dev path: `localDesignTurn` runs the design phase without `GOOGLE_API_KEY`. No branding in the UI yet (pending user decision).
 
 ## Commands
 
@@ -127,10 +127,13 @@ The `research/*.md` files exist to prevent hallucinated/outdated API usage — e
 
 ## Conventions
 
-- TypeScript, strict mode (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`); `module: nodenext`, `jsx: react-jsx`.
-- `package.json` is `"type": "commonjs"` — note `tsconfig` uses `nodenext`, so file extensions/module style matter.
-- Zod schemas for typed data boundaries (per `engine/storage/rx-db.ts` intent and `research/structure.md`).
+- TypeScript, strict mode (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`); `module: esnext` + `moduleResolution: bundler`, `jsx: react-jsx` (Next.js-managed).
+- `package.json` is `"type": "module"` (required by the Next build). Test files import siblings with a `.js` extension (bundler resolution; tsx maps it to the `.ts` source).
+- Zod schemas for typed data boundaries; deterministic logic in plain code that agents merely invoke (truth tables, rubric math, minimal diffs, manifest validation) — never let the model decide verdicts.
+- Dependency injection at every I/O seam (`fetchImpl`, file IO, clocks) so all 17 test suites run offline: `npm test`.
+- Retry budgets are CODE-enforced (image-reviewer regenerate, debugger apply both refuse past `maxRetries`), not model-honor-system.
+- Asset licensing: NC/ND always rejected; CC-BY-SA only 4.0 (one-way GPLv3-compatible); GPL-2.0-only rejected. Provenance in `assets/**/LICENSE.json`.
 
 ## License
 
-GPL-3.0 per LICENSE and this file — any code added must be GPL-3.0 compatible. ⚠️ `package.json` currently says `"license": "ISC"`, which contradicts LICENSE; should be reconciled.
+GPL-3.0 per LICENSE and `package.json` — any code or fetched asset added must be GPL-3.0 compatible.

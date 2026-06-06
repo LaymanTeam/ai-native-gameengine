@@ -51,9 +51,9 @@ export const GPL_COMPATIBLE_LICENSES = [
   'PUBLIC-DOMAIN',
   'CC-BY-3.0',
   'CC-BY-4.0',
-  'CC-BY-SA-3.0',
+  // CC-BY-SA: ONLY 4.0 is (one-way) GPLv3-compatible; SA 1.0–3.0 are NOT relicensable to GPL-3.0.
   'CC-BY-SA-4.0',
-  'GPL-2.0',
+  // GPL-2.0-only is NOT GPL-3.0 compatible; only GPL-3.0 (and LGPL) belong here.
   'GPL-3.0',
   'LGPL-3.0',
   'OFL-1.1',

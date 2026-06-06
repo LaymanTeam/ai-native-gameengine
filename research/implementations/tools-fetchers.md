@@ -22,8 +22,9 @@ suite can run fully offline.
 `"Public Domain"` → `CC0-1.0`). `isLicenseAcceptable(license)` returns
 `{ ok, reason, attributionRequired }`:
 
-- **Rejects** any NonCommercial (NC) or NoDerivatives (ND) clause, GPL-2.0-only, and UNKNOWN.
-- **Accepts** CC0, CC-BY / CC-BY-SA (any version), GPL-3.0, LGPL, MIT, BSD, OFL-1.1.
+- **Rejects** any NonCommercial (NC) or NoDerivatives (ND) clause, GPL-2.0-only, UNKNOWN, and
+  **CC-BY-SA 1.0–3.0** (only CC-BY-SA-**4.0** is one-way GPLv3-compatible per Creative Commons).
+- **Accepts** CC0, CC-BY (any version), CC-BY-SA-4.0, GPL-3.0, LGPL, MIT, BSD, OFL-1.1.
 - `attributionRequired` is true for CC-BY*, MIT, BSD, OFL.
 
 ## Exports — `sfx.ts`

@@ -157,6 +157,8 @@ export interface ImageReviewerDeps {
   weights?: RubricWeights;
   threshold?: number;
   maxRetries?: number;
+  /** Observer invoked on every deterministic verdict (pipelines capture the latest one). */
+  onVerdict?: (verdict: RubricVerdict) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +200,7 @@ export function createImageReviewerAgent(deps: ImageReviewerDeps) {
         `${IMG_REVIEW_LOG_PREFIX} score asset=${verdict.assetId} attempt=${verdict.attempt} ` +
           `score=${verdict.weightedScore.toFixed(3)} passed=${verdict.passed}`,
       );
+      deps.onVerdict?.(verdict);
       return JSON.stringify({ ...verdict, retriesRemaining: Math.max(0, maxRetries - input.attempt) });
     },
     {
@@ -214,9 +217,24 @@ export function createImageReviewerAgent(deps: ImageReviewerDeps) {
     },
   );
 
+  // HARD retry bound — code-enforced, not model-enforced. The model is told retries remain
+  // via score_asset, but even if it ignores that, this counter refuses attempt maxRetries+1.
+  const regenerationAttempts = new Map<string, number>();
+
   const regenerateTool = tool(
     async (input: { assetId: string; prompt: string; feedback: string }) => {
-      console.log(`${IMG_REVIEW_LOG_PREFIX} regenerate asset=${input.assetId}`);
+      const attempts = regenerationAttempts.get(input.assetId) ?? 0;
+      if (attempts >= maxRetries) {
+        console.error(
+          `${IMG_REVIEW_LOG_PREFIX} regenerate REFUSED asset=${input.assetId} attempts=${attempts} max=${maxRetries}`,
+        );
+        return (
+          `REFUSED: retry budget exhausted for ${input.assetId} (${attempts}/${maxRetries}). ` +
+          'You MUST call escalate_to_human with the latest verdict now.'
+        );
+      }
+      regenerationAttempts.set(input.assetId, attempts + 1);
+      console.log(`${IMG_REVIEW_LOG_PREFIX} regenerate asset=${input.assetId} attempt=${attempts + 1}/${maxRetries}`);
       try {
         const fullPrompt = `${deps.styleBible}\n\nSubject: ${input.prompt}\nFix: ${input.feedback}`;
         const { dataUrl } = await deps.regenerator.regenerate({

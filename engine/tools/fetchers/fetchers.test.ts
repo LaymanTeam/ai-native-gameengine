@@ -79,7 +79,9 @@ async function main() {
   await test('isLicenseAcceptable accepts GPL-compatible licenses', () => {
     assert.equal(isLicenseAcceptable('CC0').ok, true);
     assert.equal(isLicenseAcceptable('CC-BY 4.0').ok, true);
-    assert.equal(isLicenseAcceptable('CC-BY-SA 3.0').ok, true);
+    // CC-BY-SA: ONLY 4.0 is (one-way) GPLv3-compatible — 1.0–3.0 must be rejected.
+    assert.equal(isLicenseAcceptable('CC-BY-SA 4.0').ok, true);
+    assert.equal(isLicenseAcceptable('CC-BY-SA 3.0').ok, false);
     assert.equal(isLicenseAcceptable('GPL 3.0').ok, true);
     // attribution flags
     assert.equal(isLicenseAcceptable('CC0').attributionRequired, false);

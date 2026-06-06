@@ -14,3 +14,4 @@ tsconfig.tsbuildinfo
 # AI-generated game output (keep the authoritative spec tracked)
 generations/*
 !generations/info.md
+.vercel

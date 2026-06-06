@@ -194,6 +194,17 @@ export function createDebuggerAgent(deps: DebuggerDeps) {
 
   const applyTool = tool(
     async (input: { file: string; edits: MinimalEdit[] }) => {
+      // HARD retry bound — code-enforced: refuse the (maxRetries+1)th application outright.
+      if (attempts >= maxRetries) {
+        console.error(`${DEBUGGER_LOG_PREFIX} apply_minimal_diff REFUSED attempts=${attempts} max=${maxRetries}`);
+        return JSON.stringify({
+          ok: false,
+          applied: 0,
+          error: `REFUSED: retry budget exhausted (${attempts}/${maxRetries}). Call escalate now.`,
+          attemptsUsed: attempts,
+          retriesRemaining: 0,
+        });
+      }
       attempts++;
       console.log(`${DEBUGGER_LOG_PREFIX} apply_minimal_diff ${input.file} edits=${input.edits.length} attempt=${attempts}`);
       let original: string;
