@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="bone">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Forge — Schema</title>
+<link rel="stylesheet" href="forge.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 200px 1fr 320px; min-height: calc(100vh - 76px); }
+
+  /* left section nav */
+  .secnav { border-right: 1px solid var(--line-2); padding: var(--sp-8) var(--sp-5); position: sticky; top: 76px; align-self: start; }
+  .secnav .cap { margin-bottom: var(--sp-4); }
+  .secnav a { display: block; color: var(--muted); text-decoration: none; font-size: var(--fs-sm); padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; transition: var(--t); }
+  .secnav a:hover { background: var(--paper-2); color: var(--ink); }
+  .secnav a.on { background: var(--accent-soft); color: var(--ink); }
+
+  /* center editor */
+  .editor { padding: var(--sp-10) var(--sp-10); max-width: 720px; }
+  .ed-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: var(--sp-2); }
+  .ed-head .gname { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; }
+  .ed-sub { color: var(--muted); margin-bottom: var(--sp-10); }
+
+  .sec { margin-bottom: var(--sp-10); scroll-margin-top: 96px; }
+  .sec > .cap { margin-bottom: var(--sp-5); display: flex; align-items: center; gap: 10px; }
+  .sec > .cap::after { content:""; flex:1; height:1px; background: var(--line-2); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5) var(--sp-6); }
+  .f { display: flex; flex-direction: column; gap: 7px; }
+  .f label { font-size: var(--fs-xs); color: var(--muted); }
+  .f input[type=text], .f select { font-family: var(--font); font-size: var(--fs-body); color: var(--ink);
+    background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 13px; outline: 0; transition: border-color var(--t), box-shadow var(--t); }
+  .f input:focus, .f select:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+  /* slider stat */
+  .stat { display: flex; flex-direction: column; gap: 8px; }
+  .stat .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .stat .top .l { font-size: var(--fs-xs); color: var(--muted); }
+  .stat .top .v { font-size: var(--fs-body); font-weight: 500; }
+  .stat input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 4px; background: var(--paper-3); outline: 0; }
+  .stat input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; box-shadow: 0 0 0 4px var(--accent-soft); transition: transform var(--t-fast); }
+  .stat input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+  /* palette */
+  .palette { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+  .swatch { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .swatch .chip-c { width: 52px; height: 52px; border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--line) inset; cursor: pointer; position: relative; overflow: hidden; }
+  .swatch .chip-c input { position: absolute; inset: -6px; opacity: 0; cursor: pointer; }
+  .swatch .lab { font-size: var(--fs-xs); color: var(--muted); }
+  .swatch .hex { font-size: 10px; color: var(--faint); }
+
+  /* entity cards */
+  .ents { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .ent { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; background: var(--paper); transition: border-color var(--t); }
+  .ent:hover { border-color: var(--muted); }
+  .ent .swat { width: 34px; height: 34px; border-radius: var(--r-sm); flex-shrink: 0; box-shadow: 0 0 0 1px var(--line) inset; }
+  .ent .en { font-size: var(--fs-body); font-weight: 500; }
+  .ent .er { font-size: var(--fs-xs); color: var(--muted); }
+  .ent .estats { margin-left: auto; display: flex; gap: 18px; }
+  .ent .estats .es { text-align: center; }
+  .ent .estats .es .ev { font-size: var(--fs-body); font-weight: 500; }
+  .ent .estats .es .el { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+  .addent { border: 1px dashed rgba(var(--oc),0.2); border-radius: var(--r-lg); padding: 13px; text-align: center; color: var(--muted); font-size: var(--fs-sm); cursor: pointer; transition: var(--t); }
+  .addent:hover { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+
+  /* waves timeline */
+  .timeline { position: relative; height: 64px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--paper-2); margin-top: 6px; overflow: hidden; }
+  .timeline .axis { position: absolute; left: 0; right: 0; bottom: 16px; height: 1px; background: var(--line); }
+  .timeline .wv { position: absolute; bottom: 17px; width: 8px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .8; }
+  .timeline .boss { position: absolute; bottom: 17px; width: 3px; background: var(--warn); }
+  .timeline .tlab { position: absolute; bottom: 2px; font-size: 9px; color: var(--faint); }
+
+  /* right: live JSON + validity + eval */
+  .inspect { border-left: 1px solid var(--line-2); padding: var(--sp-8) var(--sp-5); position: sticky; top: 76px; align-self: start; height: calc(100vh - 76px); display: flex; flex-direction: column; gap: var(--sp-6); overflow-y: auto; }
+  .validity { display: flex; align-items: center; gap: 10px; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: var(--r-md); padding: 11px 14px; font-size: var(--fs-sm); }
+  .validity .tk { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 10px; }
+  .json { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.65; color: var(--muted); overflow-x: auto; flex: 1; }
+  .json .k { color: var(--ink); } .json .s { color: var(--accent); } .json .n { color: var(--warn); }
+  .evalbars { display: flex; flex-direction: column; gap: 12px; }
+  .eb .top { display: flex; justify-content: space-between; font-size: var(--fs-xs); margin-bottom: 5px; }
+  .eb .top .l { color: var(--muted); } .eb .top .v { color: var(--ink); }
+  .eb .bar { height: 5px; background: var(--paper-3); border-radius: 4px; overflow: hidden; }
+  .eb .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .eb .bar i.mid { background: var(--warn); }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wordmark" onclick="location.href='dashboard.html'">For<b>ge</b></div>
+    <nav class="nav"><a href="dashboard.html">Library</a><a class="on">Schema</a><a>Evals</a></nav>
+    <div class="end">
+      <button class="btn btn-ghost" onclick="location.href='dashboard.html'">← Library</button>
+      <span class="status"><span class="pip"></span> valid</span>
+      <div class="avatar">T</div>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- section nav -->
+    <aside class="secnav">
+      <div class="cap">Sections</div>
+      <a class="on" href="#meta">Meta</a>
+      <a href="#palette">Palette</a>
+      <a href="#player">Player</a>
+      <a href="#enemies">Enemies</a>
+      <a href="#waves">Waves</a>
+      <a href="#upgrades">Upgrades</a>
+    </aside>
+
+    <!-- editor -->
+    <main class="editor">
+      <div class="ed-head">
+        <div class="gname rise">Coastal Run</div>
+        <span class="pill rise">GameSpec · v4</span>
+      </div>
+      <div class="ed-sub rise" style="animation-delay:.05s">survivor · top-down · the structured artifact the engine builds from</div>
+
+      <section class="sec rise" id="meta" style="animation-delay:.08s">
+        <div class="cap">Meta</div>
+        <div class="grid2">
+          <div class="f"><label>Title</label><input type="text" value="Coastal Run" /></div>
+          <div class="f"><label>Theme</label><input type="text" value="calm coastal, soft light" /></div>
+          <div class="f"><label>Genre</label>
+            <select><option>survivor</option><option>dodger</option><option>shooter</option><option>collector</option><option>puzzle</option></select>
+          </div>
+          <div class="f"><label>Run length</label><input type="text" value="3:00" /></div>
+        </div>
+      </section>
+
+      <section class="sec rise" id="palette" style="animation-delay:.1s">
+        <div class="cap">Palette</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip-c" style="background:#dfe3da"><input type="color" value="#dfe3da"></div><span class="lab">background</span><span class="hex">#dfe3da</span></div>
+          <div class="swatch"><div class="chip-c" style="background:#7e8b6d"><input type="color" value="#7e8b6d"></div><span class="lab">player</span><span class="hex">#7e8b6d</span></div>
+          <div class="swatch"><div class="chip-c" style="background:#c2a77f"><input type="color" value="#c2a77f"></div><span class="lab">accent</span><span class="hex">#c2a77f</span></div>
+          <div class="swatch"><div class="chip-c" style="background:#8ea1ab"><input type="color" value="#8ea1ab"></div><span class="lab">danger</span><span class="hex">#8ea1ab</span></div>
+          <div class="swatch"><div class="chip-c" style="background:#cbb88f"><input type="color" value="#cbb88f"></div><span class="lab">xp</span><span class="hex">#cbb88f</span></div>
+        </div>
+      </section>
+
+      <section class="sec rise" id="player" style="animation-delay:.12s">
+        <div class="cap">Player</div>
+        <div class="grid2">
+          <div class="stat"><div class="top"><span class="l">Max health</span><span class="v" data-v>120</span></div><input type="range" min="40" max="300" value="120"></div>
+          <div class="stat"><div class="top"><span class="l">Move speed</span><span class="v" data-v>2.4×</span></div><input type="range" min="1" max="5" step="0.1" value="2.4" data-suffix="×"></div>
+          <div class="stat"><div class="top"><span class="l">Projectiles</span><span class="v" data-v>3</span></div><input type="range" min="1" max="8" value="3"></div>
+          <div class="stat"><div class="top"><span class="l">Fire cooldown</span><span class="v" data-v>640ms</span></div><input type="range" min="120" max="1200" value="640" data-suffix="ms"></div>
+        </div>
+      </section>
+
+      <section class="sec rise" id="enemies" style="animation-delay:.14s">
+        <div class="cap">Enemies</div>
+        <div class="ents">
+          <div class="ent"><div class="swat" style="background:#8ea1ab"></div><div><div class="en">Tide Wisp</div><div class="er">shooter · ranged</div></div><div class="estats"><div class="es"><div class="ev">18</div><div class="el">hp</div></div><div class="es"><div class="ev">1.8</div><div class="el">spd</div></div></div></div>
+          <div class="ent"><div class="swat" style="background:#c2a77f"></div><div><div class="en">Drift Hound</div><div class="er">charger · melee</div></div><div class="estats"><div class="es"><div class="ev">30</div><div class="el">hp</div></div><div class="es"><div class="ev">3.1</div><div class="el">spd</div></div></div></div>
+          <div class="ent"><div class="swat" style="background:#b89aa0"></div><div><div class="en">Harbor Maw</div><div class="er">boss · 90s</div></div><div class="estats"><div class="es"><div class="ev">900</div><div class="el">hp</div></div><div class="es"><div class="ev">1.0</div><div class="el">spd</div></div></div></div>
+          <div class="addent">＋ Add enemy</div>
+        </div>
+      </section>
+
+      <section class="sec rise" id="waves" style="animation-delay:.16s">
+        <div class="cap">Waves</div>
+        <div class="grid2">
+          <div class="stat"><div class="top"><span class="l">First wave</span><span class="v" data-v>0:10</span></div><input type="range" min="0" max="30" value="10" data-suffix="s"></div>
+          <div class="stat"><div class="top"><span class="l">Peak spawns/s</span><span class="v" data-v>8</span></div><input type="range" min="1" max="20" value="8"></div>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="sec rise" id="upgrades" style="animation-delay:.18s">
+        <div class="cap">Upgrades</div>
+        <div class="palette">
+          <span class="chip">+ Damage</span><span class="chip">− Cooldown</span><span class="chip">+ Speed</span>
+          <span class="chip">+ Max health</span><span class="chip">+ Projectiles</span><span class="chip">+ Magnet</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- inspect -->
+    <aside class="inspect noscroll">
+      <div class="validity rise"><span class="tk">✓</span> Validates against GameSpec schema</div>
+
+      <div class="rise" style="animation-delay:.06s">
+        <div class="cap" style="margin-bottom:12px">Live JSON</div>
+        <pre class="json"><span class="k">{</span>
+  <span class="k">"title"</span>: <span class="s">"Coastal Run"</span>,
+  <span class="k">"genre"</span>: <span class="s">"survivor"</span>,
+  <span class="k">"player"</span>: <span class="k">{</span>
+    <span class="k">"maxHealth"</span>: <span class="n">120</span>,
+    <span class="k">"speed"</span>: <span class="n">2.4</span>,
+    <span class="k">"projectiles"</span>: <span class="n">3</span>
+  <span class="k">}</span>,
+  <span class="k">"enemies"</span>: <span class="n">3</span>,
+  <span class="k">"waves"</span>: <span class="n">9</span>
+<span class="k">}</span></pre>
+      </div>
+
+      <div class="rise" style="animation-delay:.1s">
+        <div class="cap" style="margin-bottom:14px">Eval</div>
+        <div class="evalbars">
+          <div class="eb"><div class="top"><span class="l">Schema validity</span><span class="v">100</span></div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="eb"><div class="top"><span class="l">Playability</span><span class="v">92</span></div><div class="bar"><i style="width:92%"></i></div></div>
+          <div class="eb"><div class="top"><span class="l">Difficulty curve</span><span class="v">88</span></div><div class="bar"><i style="width:88%"></i></div></div>
+          <div class="eb"><div class="top"><span class="l">Theme coherence</span><span class="v">95</span></div><div class="bar"><i style="width:95%"></i></div></div>
+          <div class="eb"><div class="top"><span class="l">Roster diversity</span><span class="v">71</span></div><div class="bar"><i class="mid" style="width:71%"></i></div></div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+<script>
+// live slider value labels
+document.querySelectorAll('.stat input[type=range]').forEach(r=>{
+  const v=r.closest('.stat').querySelector('[data-v]'); const sfx=r.dataset.suffix||'';
+  r.addEventListener('input',()=>{ v.textContent=r.value+sfx; });
+});
+// live hex labels on color pickers
+document.querySelectorAll('.chip-c input[type=color]').forEach(c=>{
+  c.addEventListener('input',()=>{ c.parentElement.style.background=c.value; c.closest('.swatch').querySelector('.hex').textContent=c.value; });
+});
+// section nav active on scroll
+const links=[...document.querySelectorAll('.secnav a')];
+const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+const io=new IntersectionObserver(es=>{ es.forEach(e=>{ if(e.isIntersecting){ const id='#'+e.target.id;
+  links.forEach(a=>a.classList.toggle('on', a.getAttribute('href')===id)); } }); }, { rootMargin:'-20% 0px -70% 0px' });
+secs.forEach(s=>s&&io.observe(s));
+links.forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); document.querySelector(a.getAttribute('href')).scrollIntoView({behavior:'smooth'}); }));
+
+// build waves timeline
+const tl=document.getElementById('timeline');
+const total=180; // seconds
+for(let s=8;s<total;s+=Math.max(6, 18-s/14)){
+  const x=(s/total)*100; const h=10+Math.min(34, s/total*40);
+  const w=document.createElement('div'); w.className='wv'; w.style.left=x+'%'; w.style.height=h+'px'; tl.appendChild(w);
+}
+const boss=document.createElement('div'); boss.className='boss'; boss.style.left=(90/total*100)+'%'; boss.style.height='40px'; tl.appendChild(boss);
+[0,60,120,180].forEach(s=>{ const l=document.createElement('div'); l.className='tlab'; l.style.left=(s/total*100)+'%'; l.textContent=(s/60)+':00'; tl.appendChild(l); });
+const bl=document.createElement('div'); bl.className='tlab'; bl.style.left=(90/total*100)+'%'; bl.style.color='var(--warn)'; bl.textContent='boss'; tl.appendChild(bl);
+</script>
+</body>
+</html>

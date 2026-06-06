@@ -1,0 +1,167 @@
+/* ============================================================
+   FORGE — design system
+   Tokens → base → components. Framework-agnostic; ports cleanly
+   to Tailwind/React (each token maps to a theme value).
+   ============================================================ */
+
+/* ---------- fonts ---------- */
+@import url("https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@300;400;500;600;700&display=swap");
+
+/* ---------- tokens: default theme = Bone & Sage ---------- */
+:root {
+  /* surfaces */
+  --paper:   #f4f2ec;
+  --paper-2: #ece9e1;
+  --paper-3: #e3e0d7;
+  --canvas:  #e7e4db;
+
+  /* ink */
+  --ink:   #26241f;
+  --muted: #908b80;
+  --faint: #b9b4a8;
+
+  /* accent + semantic */
+  --accent:      #7e8b6d;
+  --accent-soft: rgba(126,139,109,0.12);
+  --accent-ink:  #1f2615;       /* text on accent */
+  --warn:        #c08a4a;
+
+  /* lines + glass (over canvas) */
+  --line:       rgba(38,36,31,0.08);
+  --line-2:     rgba(38,36,31,0.05);
+  --oc:         38,36,31;        /* "on canvas" rgb triplet */
+  --glass:      rgba(244,242,236,0.82);
+  --glass-line: rgba(38,36,31,0.08);
+
+  /* type scale */
+  --font: "Schibsted Grotesk", system-ui, -apple-system, sans-serif;
+  --fs-display: 34px;
+  --fs-h1: 24px;
+  --fs-h2: 18px;
+  --fs-body: 14px;
+  --fs-sm: 13px;
+  --fs-xs: 12px;
+  --fs-cap: 11px;
+  --tracking-cap: 0.14em;
+
+  /* space (4px base) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-14: 56px;
+
+  /* radius */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px; --r-2xl: 24px; --r-full: 999px;
+
+  /* shadow (soft, layered) */
+  --sh-1: 0 1px 2px rgba(0,0,0,0.04);
+  --sh-2: 0 12px 28px -18px rgba(38,36,31,0.4);
+  --sh-3: 0 24px 60px -34px rgba(38,36,31,0.5);
+  --sh-pop: 0 40px 100px -30px rgba(0,0,0,0.5);
+
+  /* motion */
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --ease-spring: cubic-bezier(.16,1.1,.3,1);
+  --t-fast: .15s; --t: .25s; --t-slow: .5s;
+}
+
+/* alternate themes via [data-theme] on <html> */
+[data-theme="mist"] {
+  --paper:#eef1f3; --paper-2:#e5e9ec; --paper-3:#dce1e5; --canvas:#e2e7ea;
+  --ink:#232a30; --muted:#7e8893; --faint:#aeb6bd;
+  --accent:#5f7c8a; --accent-soft:rgba(95,124,138,0.13); --accent-ink:#0e1a20;
+  --line:rgba(35,42,48,0.08); --line-2:rgba(35,42,48,0.05); --oc:35,42,48;
+  --glass:rgba(238,241,243,0.82); --glass-line:rgba(35,42,48,0.08);
+}
+[data-theme="clay"] {
+  --paper:#f5efe8; --paper-2:#efe7dd; --paper-3:#e7ddd0; --canvas:#ece2d6;
+  --ink:#2e2620; --muted:#9a8b7c; --faint:#c4b6a4;
+  --accent:#b9745a; --accent-soft:rgba(185,116,90,0.13); --accent-ink:#fff;
+  --line:rgba(46,38,32,0.08); --line-2:rgba(46,38,32,0.05); --oc:46,38,32;
+  --glass:rgba(245,239,232,0.82); --glass-line:rgba(46,38,32,0.08);
+}
+[data-theme="night"] {
+  --paper:#1b1c19; --paper-2:#232420; --paper-3:#2a2b26; --canvas:#202320;
+  --ink:#ecebe4; --muted:#8f8c82; --faint:#5f5d55;
+  --accent:#aebf86; --accent-soft:rgba(174,191,134,0.14); --accent-ink:#16170f;
+  --line:rgba(255,255,255,0.09); --line-2:rgba(255,255,255,0.05); --oc:236,235,228;
+  --glass:rgba(27,28,25,0.8); --glass-line:rgba(255,255,255,0.12);
+}
+
+/* ---------- base ---------- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font); font-size: var(--fs-body);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  transition: background var(--t);
+}
+::selection { background: var(--accent-soft); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+button { font-family: inherit; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+.noscroll::-webkit-scrollbar { width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001s !important; transition-duration: .001s !important; }
+}
+
+/* ---------- typography helpers ---------- */
+.cap { font-size: var(--fs-cap); letter-spacing: var(--tracking-cap); text-transform: uppercase; color: var(--faint); }
+.h1 { font-size: var(--fs-h1); font-weight: 500; letter-spacing: -0.015em; }
+.display { font-size: var(--fs-display); font-weight: 500; letter-spacing: -0.02em; }
+
+/* ---------- top bar ---------- */
+.topbar { display: flex; align-items: center; padding: 0 var(--sp-10); height: 76px;
+          border-bottom: 1px solid var(--line-2); position: sticky; top: 0; background: var(--paper); z-index: 20; }
+.wordmark { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; }
+.wordmark b { color: var(--accent); }
+.nav { margin-left: var(--sp-14); display: flex; gap: var(--sp-8); }
+.nav a { color: var(--faint); text-decoration: none; font-size: var(--fs-body); cursor: pointer; position: relative; padding: 4px 0; transition: color var(--t); }
+.nav a:hover { color: var(--muted); }
+.nav a.on { color: var(--ink); }
+.nav a.on::after { content:""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: var(--accent); border-radius: 2px; animation: navin .3s var(--ease); }
+@keyframes navin { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.topbar .end { margin-left: auto; display: flex; align-items: center; gap: var(--sp-5); }
+.kbd-hint { display: flex; align-items: center; gap: 6px; color: var(--faint); font-size: var(--fs-xs); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 5px 9px; cursor: pointer; transition: border-color var(--t), color var(--t); }
+.kbd-hint:hover { color: var(--muted); border-color: var(--muted); }
+.kbd-hint kbd { font: inherit; }
+.status { color: var(--muted); font-size: var(--fs-sm); display: flex; align-items: center; gap: 9px; }
+.pip { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: relative; }
+.pip::after { content:""; position: absolute; inset: -3px; border-radius: 50%; border: 1px solid var(--accent); opacity: .5; animation: ping 2s var(--ease) infinite; }
+@keyframes ping { 0%{transform:scale(.6);opacity:.6;} 100%{transform:scale(1.6);opacity:0;} }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--paper-2); border: 1px solid var(--line); display: grid; place-items: center; font-size: var(--fs-sm); color: var(--muted); cursor: pointer; }
+
+/* ---------- buttons ---------- */
+.btn { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: var(--r-md);
+       font-family: var(--font); font-size: var(--fs-body); font-weight: 500; cursor: pointer;
+       padding: 12px 18px; transition: transform var(--t-fast), opacity var(--t), background var(--t); }
+.btn:active { transform: translateY(0) scale(.99); }
+.btn-primary { background: var(--ink); color: var(--paper); }
+.btn-primary:hover { opacity: .9; transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.btn-ghost:hover { color: var(--ink); border-color: var(--muted); }
+.btn-accent { background: var(--accent); color: var(--accent-ink); }
+.icon-btn { width: 32px; height: 32px; border-radius: var(--r-sm); border: 0; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; transition: var(--t); }
+.icon-btn:hover { color: var(--ink); background: rgba(var(--oc),0.05); }
+
+/* ---------- pills / chips / segmented ---------- */
+.pill { font-size: var(--fs-xs); border: 1px solid var(--line); border-radius: var(--r-full); padding: 2px 9px; color: var(--muted); background: var(--paper); }
+.chip { font-size: var(--fs-sm); color: var(--muted); border: 1px solid var(--line); border-radius: var(--r-full); padding: 6px 13px; cursor: pointer; background: var(--paper); transition: all var(--t); }
+.chip:hover { color: var(--ink); border-color: var(--muted); background: var(--paper-2); }
+.seg { display: inline-flex; gap: 2px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-full); padding: 2px; }
+.seg button { background: 0; border: 0; font-family: var(--font); font-size: var(--fs-xs); color: var(--muted); padding: 5px 12px; border-radius: var(--r-full); cursor: pointer; transition: var(--t); }
+.seg button.on { background: var(--ink); color: var(--paper); }
+
+/* ---------- toast ---------- */
+.toasts { position: fixed; bottom: var(--sp-6); left: 50%; transform: translateX(-50%); z-index: 80; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast { display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--paper); border-radius: var(--r-md); padding: 11px 16px; font-size: var(--fs-sm); box-shadow: var(--sh-3); animation: toastin .4s var(--ease-spring); }
+.toast .td { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+@keyframes toastin { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.toast.out { animation: toastout .3s var(--ease) forwards; }
+@keyframes toastout { to { opacity: 0; transform: translateY(8px); } }
+
+/* ---------- entrance ---------- */
+.rise { opacity: 0; transform: translateY(12px); animation: rise var(--t-slow) var(--ease) forwards; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
