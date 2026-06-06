@@ -24,7 +24,8 @@ function renderInline(text: string): ReactNode[] {
   return nodes;
 }
 
-export function Markdown({ source }: { source: string }) {
+export function Markdown({ source, tone = 'muted' }: { source: string; tone?: 'muted' | 'normal' }) {
+  const bodyColor = tone === 'muted' ? 'dimmed' : undefined;
   const lines = source.replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
   let bullets: string[] = [];
@@ -37,7 +38,7 @@ export function Markdown({ source }: { source: string }) {
     blocks.push(
       <List key={key++} spacing={4} size="sm" withPadding listStyleType="disc">
         {items.map((b, i) => (
-          <List.Item key={i}><Text span size="sm" c="dimmed">{renderInline(b)}</Text></List.Item>
+          <List.Item key={i}><Text span size="sm" c={bodyColor}>{renderInline(b)}</Text></List.Item>
         ))}
       </List>,
     );
@@ -61,7 +62,7 @@ export function Markdown({ source }: { source: string }) {
         </Box>,
       );
     } else {
-      blocks.push(<Text key={key++} size="sm" c="dimmed">{renderInline(line)}</Text>);
+      blocks.push(<Text key={key++} size="sm" c={bodyColor}>{renderInline(line)}</Text>);
     }
   }
   flushBullets();

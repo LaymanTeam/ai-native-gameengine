@@ -237,10 +237,12 @@ export function Chat() {
                         <Text style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
                       </Paper>
                     ) : (
-                      <Text style={{ whiteSpace: 'pre-wrap' }}>
-                        {message.content || (busy ? '…' : '')}
-                        {!isUser && busy && index === messages.length - 1 && <span className="forge-caret" />}
-                      </Text>
+                      <Box>
+                        {message.content
+                          ? <Markdown source={message.content} tone="normal" />
+                          : (busy ? <Text c="dimmed">…</Text> : null)}
+                        {busy && index === messages.length - 1 && <span className="forge-caret" />}
+                      </Box>
                     )
                   )}
 
