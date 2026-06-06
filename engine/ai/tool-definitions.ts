@@ -13,6 +13,7 @@ import path from 'node:path';
 import { generateImage } from './providers';
 import { buildLocalGdd, gddSchema, renderGddMarkdown } from './agents/designer';
 import type { GameDesignDocument } from './agents/designer';
+import { generateGameHtml } from './codegen';
 
 const TOOLS_LOG_PREFIX = '[engine/ai/tool-definitions]';
 
@@ -23,10 +24,17 @@ export type EngineEvent =
   | { type: 'tool_end'; name: string; ok: boolean; detail: string }
   | { type: 'image'; id: string; dataUrl: string; caption: string }
   | { type: 'artifact'; kind: string; title: string; markdown: string }
+  | { type: 'play'; slug: string; title: string }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
 export type EmitEvent = (event: EngineEvent) => void;
+
+/**
+ * Last design produced this server lifetime — lets the code phase pick up the approved GDD without
+ * the model re-sending it. Module-scoped (single-user/demo scope; same caveat as the checkpointers).
+ */
+let lastDesign: { slug: string; gdd: GameDesignDocument } | null = null;
 
 function slugify(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'game';
@@ -48,6 +56,28 @@ async function persistGdd(gdd: GameDesignDocument): Promise<string> {
   return slug;
 }
 
+/** Write the generated game's single-file build (game.html) into its tree. */
+async function persistGameHtml(slug: string, html: string): Promise<void> {
+  try {
+    const dir = path.join(process.cwd(), 'generations', slug);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, 'game.html'), html, 'utf8');
+    console.log(`${TOOLS_LOG_PREFIX} persistGameHtml wrote generations/${slug}/game.html (${html.length} chars)`);
+  } catch (error) {
+    console.error(`${TOOLS_LOG_PREFIX} persistGameHtml failed (ephemeral FS?)`, error);
+  }
+}
+
+/** Run the code phase for a GDD: generate the playable build, persist it, emit a play artifact. */
+async function runCodePhase(emit: EmitEvent, slug: string, gdd: GameDesignDocument): Promise<string> {
+  emit({ type: 'tool_start', name: 'code_game', detail: gdd.title });
+  const { html, source } = await generateGameHtml(gdd);
+  await persistGameHtml(slug, html);
+  emit({ type: 'tool_end', name: 'code_game', ok: true, detail: `${source} · ${html.length} chars` });
+  emit({ type: 'play', slug, title: gdd.title });
+  return `Built a playable version of "${gdd.title}" (${source} build) — it's embedded above. Play it, then tell me what to tweak.`;
+}
+
 /**
  * Keyless design turn — runs the design phase without the Gemini director (no GOOGLE_API_KEY).
  * Builds a bounded GDD locally, persists it, emits it as an artifact, and returns a chat summary.
@@ -56,13 +86,24 @@ export async function localDesignTurn(emit: EmitEvent, prompt: string): Promise<
   emit({ type: 'tool_start', name: 'design_game', detail: 'designing (local)' });
   const gdd = buildLocalGdd(prompt);
   const slug = await persistGdd(gdd);
+  lastDesign = { slug, gdd };
   emit({ type: 'artifact', kind: 'gdd', title: gdd.title, markdown: renderGddMarkdown(gdd) });
   emit({ type: 'tool_end', name: 'design_game', ok: true, detail: slug });
   return (
     `I drafted a bounded design for “${gdd.title}” — a ${gdd.genre} with one core mechanic and ` +
-    `${gdd.scenes.length} scene. Review the GDD above, then tell me what to change or say “go” to ` +
-    `move to the asset phase. (Running keyless — set GOOGLE_API_KEY for the full Gemini director.)`
+    `${gdd.scenes.length} scene. Review the GDD above, then say “build” to generate a playable ` +
+    `version. (Running keyless — set GOOGLE_API_KEY for the full Gemini director + richer code.)`
   );
+}
+
+/** Keyless build turn — runs the code phase for the last design (no GOOGLE_API_KEY). */
+export async function localBuildTurn(emit: EmitEvent): Promise<string> {
+  if (!lastDesign) return 'Describe a game first so I can design it, then I can build a playable version.';
+  return runCodePhase(emit, lastDesign.slug, lastDesign.gdd);
+}
+
+export function hasPendingDesign(): boolean {
+  return lastDesign !== null;
 }
 
 /**
@@ -109,12 +150,13 @@ export function makeDirectorTools(emit: EmitEvent) {
       console.log(`${TOOLS_LOG_PREFIX} design_game start title=${gdd.title}`);
       emit({ type: 'tool_start', name: 'design_game', detail: gdd.title });
       const slug = await persistGdd(gdd);
+      lastDesign = { slug, gdd };
       emit({ type: 'artifact', kind: 'gdd', title: gdd.title, markdown: renderGddMarkdown(gdd) });
       emit({ type: 'tool_end', name: 'design_game', ok: true, detail: slug });
       return (
         `GDD for "${gdd.title}" saved to generations/${slug} (reports/gdd.md + config/gdd.json). ` +
         `Core mechanic: ${gdd.coreMechanic}. Win: ${gdd.winCondition}. ` +
-        `Summarize it for the user and ask them to approve or adjust before the asset phase.`
+        `Summarize it for the user and ask them to approve. Once they approve, call build_game.`
       );
     },
     {
@@ -127,5 +169,22 @@ export function makeDirectorTools(emit: EmitEvent) {
     },
   );
 
-  return [generateImageTool, designTool];
+  const buildTool = tool(
+    async () => {
+      if (!lastDesign) return 'No design yet — call design_game first to produce the GDD, then build.';
+      console.log(`${TOOLS_LOG_PREFIX} build_game start slug=${lastDesign.slug}`);
+      return runCodePhase(emit, lastDesign.slug, lastDesign.gdd);
+    },
+    {
+      name: 'build_game',
+      description:
+        'Generate the actual playable game (a self-contained build) from the approved GDD and embed ' +
+        'it for the user to play. Call this only AFTER the user approves the design from design_game.',
+      schema: z.object({
+        confirm: z.boolean().optional().describe('Unused — pass true or omit; builds the last approved design'),
+      }),
+    },
+  );
+
+  return [generateImageTool, designTool, buildTool];
 }

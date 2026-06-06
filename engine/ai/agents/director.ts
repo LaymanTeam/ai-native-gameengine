@@ -23,7 +23,9 @@ const SYSTEM_PROMPT =
   'Use generate_image to explore visual direction when the user discusses look and feel. ' +
   'When the concept and scope are clear, call design_game to produce and persist the bounded ' +
   'Game Design Document (one core mechanic, 1-3 scenes, explicit win/lose and non-goals), then ' +
-  'summarize it and ask the user to approve before moving on. ' +
+  'summarize it and ask the user to approve. ' +
+  'Once the user approves the design, call build_game to generate the actual playable game and ' +
+  'embed it for them to play; then invite tweaks. ' +
   'Be concise and concrete; confirm scope before generating.';
 
 // Module scope: shared across warm invocations so threads keep their history.

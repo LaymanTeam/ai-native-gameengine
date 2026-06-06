@@ -13,7 +13,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import {
-  ActionIcon, Avatar, Box, Button, Group, Image, Loader, Paper,
+  ActionIcon, Anchor, Avatar, Box, Button, Group, Image, Loader, Paper,
   ScrollArea, SegmentedControl, Stack, Text, Textarea, ThemeIcon,
 } from '@mantine/core';
 import type { EngineEvent } from '@/engine/frontend/integration/contracts';
@@ -40,12 +40,18 @@ interface Artifact {
   markdown: string;
 }
 
+interface PlayBuild {
+  slug: string;
+  title: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   images: GeneratedImageAttachment[];
   steps: ToolStep[];
   artifacts: Artifact[];
+  plays: PlayBuild[];
 }
 
 const SUGGESTIONS = [
@@ -113,9 +119,9 @@ export function Chat() {
 
     threadIdRef.current ??= crypto.randomUUID();
     const threadId = threadIdRef.current;
-    const history: ChatMessage[] = [...messages, { role: 'user', content, images: [], steps: [], artifacts: [] }];
+    const history: ChatMessage[] = [...messages, { role: 'user', content, images: [], steps: [], artifacts: [], plays: [] }];
     console.log(`${CHAT_LOG_PREFIX} send thread=${threadId} chars=${content.length}`);
-    setMessages([...history, { role: 'assistant', content: '', images: [], steps: [], artifacts: [] }]);
+    setMessages([...history, { role: 'assistant', content: '', images: [], steps: [], artifacts: [], plays: [] }]);
     setInput('');
     setBusy(true);
 
@@ -123,10 +129,11 @@ export function Chat() {
     let assistantImages: GeneratedImageAttachment[] = [];
     let assistantSteps: ToolStep[] = [];
     let assistantArtifacts: Artifact[] = [];
+    let assistantPlays: PlayBuild[] = [];
     const renderAssistant = () => {
       setMessages([
         ...history,
-        { role: 'assistant', content: assistantText, images: assistantImages, steps: assistantSteps, artifacts: assistantArtifacts },
+        { role: 'assistant', content: assistantText, images: assistantImages, steps: assistantSteps, artifacts: assistantArtifacts, plays: assistantPlays },
       ]);
       scrollToBottom();
     };
@@ -162,6 +169,11 @@ export function Chat() {
         case 'artifact':
           console.log(`${CHAT_LOG_PREFIX} artifact ${event.kind}: ${event.title}`);
           assistantArtifacts = [...assistantArtifacts, { kind: event.kind, title: event.title, markdown: event.markdown }];
+          renderAssistant();
+          break;
+        case 'play':
+          console.log(`${CHAT_LOG_PREFIX} play build ${event.slug}`);
+          assistantPlays = [...assistantPlays, { slug: event.slug, title: event.title }];
           renderAssistant();
           break;
         case 'error':
@@ -250,6 +262,24 @@ export function Chat() {
                     <Paper key={image.id} withBorder radius="md" p={6} maw={420}>
                       <Image src={image.dataUrl} alt={image.caption} title={image.caption} radius="sm" />
                       <Text size="xs" c="dimmed" mt={6}>{image.caption}</Text>
+                    </Paper>
+                  ))}
+
+                  {message.plays.map((play) => (
+                    <Paper key={play.slug} withBorder radius="md" p={6} w="100%" style={{ maxWidth: 560 }}>
+                      <Group justify="space-between" mb={6} px={4}>
+                        <Text size="xs" fw={600} c="sage" tt="uppercase" lts="0.08em">▶ Playable build</Text>
+                        <Anchor href={`/api/games/${play.slug}`} target="_blank" size="xs">Open full ↗</Anchor>
+                      </Group>
+                      <Box style={{ aspectRatio: '16 / 10', borderRadius: 8, overflow: 'hidden', background: '#0d0f14' }}>
+                        <iframe
+                          src={`/api/games/${play.slug}`}
+                          title={play.title}
+                          style={{ border: 0, width: '100%', height: '100%', display: 'block' }}
+                          allow="autoplay; gamepad"
+                        />
+                      </Box>
+                      <Text size="xs" c="dimmed" mt={6} px={4}>Click the game, then WASD / arrows to play.</Text>
                     </Paper>
                   ))}
                 </Stack>

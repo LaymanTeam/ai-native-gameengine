@@ -8,7 +8,7 @@
  */
 import { isAIMessageChunk } from '@langchain/core/messages';
 import { createDirectorAgent, directorThreadConfig } from '../../../engine/ai/agents/director';
-import { localDesignTurn, type EngineEvent } from '../../../engine/ai/tool-definitions';
+import { hasPendingDesign, localBuildTurn, localDesignTurn, type EngineEvent } from '../../../engine/ai/tool-definitions';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -54,8 +54,11 @@ export async function POST(req: Request): Promise<Response> {
         // Keyless dev path: without GOOGLE_API_KEY the Gemini director can't run, so run the
         // design phase locally so the engine still produces a real artifact (the GDD).
         if (!process.env['GOOGLE_API_KEY']) {
-          console.log(`${ROUTE_LOG_PREFIX} no GOOGLE_API_KEY — running keyless local design turn`);
-          const summary = await localDesignTurn(emit, message);
+          const wantsBuild = /^\s*(build|go|yes|make it|play|approve|ship|generate)\b/i.test(message);
+          console.log(`${ROUTE_LOG_PREFIX} no GOOGLE_API_KEY — keyless ${wantsBuild && hasPendingDesign() ? 'build' : 'design'} turn`);
+          const summary = wantsBuild && hasPendingDesign()
+            ? await localBuildTurn(emit)
+            : await localDesignTurn(emit, message);
           for (const word of summary.split(/(\s+)/)) emit({ type: 'token', text: word });
           emit({ type: 'done' });
           return; // the `finally` closes the controller (avoid double-close)
