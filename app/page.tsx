@@ -1,12 +1,12 @@
 import { Box } from '@mantine/core';
-import { PlayableForgeStudio } from '@/engine/frontend/components/PlayableForgeStudio';
+import { Chat } from '@/engine/frontend/components/Chat';
 
-// Spike branch: use the multimodal shell as the front door for the already-working
-// Prompt Roguelite Forge generation/player pipeline.
+// Studio = the agentic engine conversation. The director drives generation phase by phase
+// (design → assets → code → test → deploy); phases stream in as tool events + artifacts.
 export default function HomePage() {
   return (
-    <Box style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <PlayableForgeStudio />
+    <Box px="md" py="lg" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Chat />
     </Box>
   );
 }

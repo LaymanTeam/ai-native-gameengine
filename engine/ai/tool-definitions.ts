@@ -8,7 +8,11 @@
  */
 import { tool } from 'langchain';
 import * as z from 'zod';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { generateImage } from './providers';
+import { buildLocalGdd, gddSchema, renderGddMarkdown } from './agents/designer';
+import type { GameDesignDocument } from './agents/designer';
 
 const TOOLS_LOG_PREFIX = '[engine/ai/tool-definitions]';
 
@@ -18,10 +22,48 @@ export type EngineEvent =
   | { type: 'tool_start'; name: string; detail: string }
   | { type: 'tool_end'; name: string; ok: boolean; detail: string }
   | { type: 'image'; id: string; dataUrl: string; caption: string }
+  | { type: 'artifact'; kind: string; title: string; markdown: string }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
 export type EmitEvent = (event: EngineEvent) => void;
+
+function slugify(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'game';
+}
+
+/** Persist the GDD into the generated-game tree (reports/gdd.md + config/gdd.json). Returns the slug. */
+async function persistGdd(gdd: GameDesignDocument): Promise<string> {
+  const slug = `${slugify(gdd.title)}-${Date.now().toString(36).slice(-4)}`;
+  try {
+    const dir = path.join(process.cwd(), 'generations', slug);
+    await fs.mkdir(path.join(dir, 'reports'), { recursive: true });
+    await fs.mkdir(path.join(dir, 'config'), { recursive: true });
+    await fs.writeFile(path.join(dir, 'reports', 'gdd.md'), renderGddMarkdown(gdd), 'utf8');
+    await fs.writeFile(path.join(dir, 'config', 'gdd.json'), JSON.stringify(gdd, null, 2), 'utf8');
+    console.log(`${TOOLS_LOG_PREFIX} persistGdd wrote generations/${slug}`);
+  } catch (error) {
+    console.error(`${TOOLS_LOG_PREFIX} persistGdd failed (ephemeral FS?)`, error);
+  }
+  return slug;
+}
+
+/**
+ * Keyless design turn — runs the design phase without the Gemini director (no GOOGLE_API_KEY).
+ * Builds a bounded GDD locally, persists it, emits it as an artifact, and returns a chat summary.
+ */
+export async function localDesignTurn(emit: EmitEvent, prompt: string): Promise<string> {
+  emit({ type: 'tool_start', name: 'design_game', detail: 'designing (local)' });
+  const gdd = buildLocalGdd(prompt);
+  const slug = await persistGdd(gdd);
+  emit({ type: 'artifact', kind: 'gdd', title: gdd.title, markdown: renderGddMarkdown(gdd) });
+  emit({ type: 'tool_end', name: 'design_game', ok: true, detail: slug });
+  return (
+    `I drafted a bounded design for “${gdd.title}” — a ${gdd.genre} with one core mechanic and ` +
+    `${gdd.scenes.length} scene. Review the GDD above, then tell me what to change or say “go” to ` +
+    `move to the asset phase. (Running keyless — set GOOGLE_API_KEY for the full Gemini director.)`
+  );
+}
 
 /**
  * Director toolset. The generated image is emitted to the client as an SSE frame;
@@ -62,5 +104,28 @@ export function makeDirectorTools(emit: EmitEvent) {
     },
   );
 
-  return [generateImageTool];
+  const designTool = tool(
+    async (gdd: GameDesignDocument) => {
+      console.log(`${TOOLS_LOG_PREFIX} design_game start title=${gdd.title}`);
+      emit({ type: 'tool_start', name: 'design_game', detail: gdd.title });
+      const slug = await persistGdd(gdd);
+      emit({ type: 'artifact', kind: 'gdd', title: gdd.title, markdown: renderGddMarkdown(gdd) });
+      emit({ type: 'tool_end', name: 'design_game', ok: true, detail: slug });
+      return (
+        `GDD for "${gdd.title}" saved to generations/${slug} (reports/gdd.md + config/gdd.json). ` +
+        `Core mechanic: ${gdd.coreMechanic}. Win: ${gdd.winCondition}. ` +
+        `Summarize it for the user and ask them to approve or adjust before the asset phase.`
+      );
+    },
+    {
+      name: 'design_game',
+      description:
+        'Produce and persist the bounded Game Design Document (reports/gdd.md + config/gdd.json). ' +
+        'Call this once the concept and scope are clear: provide ONE core mechanic, 1-3 scenes, ' +
+        'explicit win/lose conditions, controls, and explicit non-goals (scope cuts).',
+      schema: gddSchema,
+    },
+  );
+
+  return [generateImageTool, designTool];
 }

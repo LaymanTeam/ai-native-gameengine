@@ -3,3 +3,6 @@ node_modules/
 dist/
 .env
 .env*.local
+
+# AI-generated game output
+generations/

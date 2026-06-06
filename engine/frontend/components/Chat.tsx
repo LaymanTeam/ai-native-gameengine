@@ -33,18 +33,39 @@ interface ToolStep {
   status: 'running' | 'done' | 'failed';
 }
 
+interface Artifact {
+  kind: string;
+  title: string;
+  markdown: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   images: GeneratedImageAttachment[];
   steps: ToolStep[];
+  artifacts: Artifact[];
 }
 
 const SUGGESTIONS = [
-  'A calm coastal survivor where you gather light',
+  'A chaotic top-down roguelite in a haunted bakery',
   'A neon arena shooter with drone swarms',
   'A cozy fishing-village RPG with a day/night cycle',
 ];
+
+function ArtifactCard({ artifact }: { artifact: Artifact }) {
+  return (
+    <Paper withBorder radius="md" p="md" w="100%">
+      <Group gap={8} mb="xs">
+        <ThemeIcon size={18} radius="xl" color="sage" variant="light"><Text size="10px" fw={700}>GDD</Text></ThemeIcon>
+        <Text fw={500} size="sm">{artifact.title}</Text>
+      </Group>
+      <Text component="pre" size="xs" c="dimmed" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.6 }}>
+        {artifact.markdown}
+      </Text>
+    </Paper>
+  );
+}
 
 function ForgeAvatar() {
   return (
@@ -93,19 +114,20 @@ export function Chat() {
 
     threadIdRef.current ??= crypto.randomUUID();
     const threadId = threadIdRef.current;
-    const history: ChatMessage[] = [...messages, { role: 'user', content, images: [], steps: [] }];
+    const history: ChatMessage[] = [...messages, { role: 'user', content, images: [], steps: [], artifacts: [] }];
     console.log(`${CHAT_LOG_PREFIX} send thread=${threadId} chars=${content.length}`);
-    setMessages([...history, { role: 'assistant', content: '', images: [], steps: [] }]);
+    setMessages([...history, { role: 'assistant', content: '', images: [], steps: [], artifacts: [] }]);
     setInput('');
     setBusy(true);
 
     let assistantText = '';
     let assistantImages: GeneratedImageAttachment[] = [];
     let assistantSteps: ToolStep[] = [];
+    let assistantArtifacts: Artifact[] = [];
     const renderAssistant = () => {
       setMessages([
         ...history,
-        { role: 'assistant', content: assistantText, images: assistantImages, steps: assistantSteps },
+        { role: 'assistant', content: assistantText, images: assistantImages, steps: assistantSteps, artifacts: assistantArtifacts },
       ]);
       scrollToBottom();
     };
@@ -136,6 +158,11 @@ export function Chat() {
         case 'image':
           console.log(`${CHAT_LOG_PREFIX} image received id=${event.id}`);
           assistantImages = [...assistantImages, { id: event.id, dataUrl: event.dataUrl, caption: event.caption }];
+          renderAssistant();
+          break;
+        case 'artifact':
+          console.log(`${CHAT_LOG_PREFIX} artifact ${event.kind}: ${event.title}`);
+          assistantArtifacts = [...assistantArtifacts, { kind: event.kind, title: event.title, markdown: event.markdown }];
           renderAssistant();
           break;
         case 'error':
@@ -200,6 +227,10 @@ export function Chat() {
                   </Text>
 
                   {message.steps.length > 0 && <TraceRow steps={message.steps} />}
+
+                  {message.artifacts.map((artifact, i) => (
+                    <ArtifactCard key={`${artifact.kind}-${i}`} artifact={artifact} />
+                  ))}
 
                   {(message.content || (!isUser && message.steps.length === 0)) && (
                     isUser ? (
