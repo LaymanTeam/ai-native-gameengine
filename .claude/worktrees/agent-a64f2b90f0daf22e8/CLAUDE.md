@@ -14,7 +14,7 @@ Early scaffolding phase, now with a working Next.js 16 (App Router) shell. Imple
 
 ## Commands
 
-- `npm run dev` — Next.js dev server (chat UI at `/`; needs `GOOGLE_API_KEY` in `.env` for responses; no auth — the engine UI is open)
+- `npm run dev` — Next.js dev server (chat UI at `/`; needs `GOOGLE_API_KEY` in `.env` for responses; Clerk runs keyless in dev)
 - `npm run build` — production build (also typechecks)
 - `npm run typecheck` — `tsc --noEmit`
 - No lint or test setup yet — update this when added (including how to run a single test).
@@ -32,8 +32,7 @@ engine/                      # The reusable engine — the product
 │                            #   search-and-get, logic-evaluator, playtester, tester, debugger
 │                            #   — see the agent roster table in the Plan of Action below
 ├── auth/
-│   ├── clerk.ts             # Clerk player identity for MULTIPLAYER in generated games —
-│   │                        #   ⚠️ NEVER gates the engine app; the engine chat UI is open
+│   ├── clerk.ts             # Reusable Clerk auth/user-management methods shared across games
 │   └── sendblue.ts          # (messaging/notification channel — stub) -- for multiplayer fucntionationality and logging in
 ├── compiler/
 │   ├── vite-creator.ts      # Scaffolds the generated game as a Vite project 

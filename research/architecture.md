@@ -8,19 +8,15 @@
 ```mermaid
 flowchart TB
     %% ============ SURFACE ============
-    subgraph SURFACE["Surface (Vercel)"
-        ]
+    subgraph SURFACE["Surface (Vercel)"]
         USER([User])
         VOICE["tools/voice/voice.ts<br/>speech-to-text layer"]
         CHAT["frontend/components/Chat.tsx<br/>Mantine chat UI"]
         ROUTE["app/api/chat/route.ts<br/>Node runtime, streaming"]
-        CLERK["auth/clerk.ts + proxy.ts<br/>login / user mgmt"]
-        SENDBLUE["auth/sendblue.ts<br/>multiplayer + login msgs"]
     end
 
     USER -->|speaks| VOICE --> CHAT
     USER -->|types| CHAT
-    CLERK -.gates.-> CHAT
     CHAT -->|POST messages| ROUTE
 
     %% ============ AI CORE ============
@@ -98,15 +94,132 @@ flowchart TB
         RXDB["storage/rx-db.ts<br/>Zod-schemaed saves"]
         AUDIO["audio/playback.ts"]
         INPUT["input/controller.ts<br/>typed action set"]
+        CLERK["auth/clerk.ts<br/>player identity for MULTIPLAYER<br/>(does NOT gate the engine UI)"]
+        SENDBLUE["auth/sendblue.ts<br/>multiplayer + login msgs"]
     end
 
-    subgraph GAME["generations/&lt;game&gt;/ (per info.md)"]
+    subgraph GAME["generations/<game>/ (per info.md)"]
         GTREE["research/ reports/ assets/ systems/<br/>ui/ saves/ config/ render/ tests/ main.ts"]
     end
 
-    GAME -->|imports| ECS & PIXI & RXDB & AUDIO & INPUT
+    GAME -->|imports| ECS & PIXI & RXDB & AUDIO & INPUT & CLERK & SENDBLUE
     PLAY -->|drives actions via| INPUT
-    SENDBLUE -.multiplayer/login msgs.-> GAME
+```
+
+## Engine filetree (current, on disk)
+
+```
+ai-native-gameengine/
+├── app/                                  # Next.js 16 App Router shell (the engine's surface)
+│   ├── api/chat/route.ts                 #   SSE streaming route → director agent (Node runtime)
+│   ├── layout.tsx                        #   Mantine provider (NO Clerk — engine UI is open)
+│   └── page.tsx                          #   chat page
+├── engine/
+│   ├── ai/
+│   │   ├── providers.ts                  # Gemini factories: conversation/coder/lite/image(+Pro)/
+│   │   │                                 #   search-grounded/embeddings + generateImage()
+│   │   ├── tool-definitions.ts           # Zod-schemaed LangChain tool() wrappers (per-request, emits events)
+│   │   └── agents/                       # createAgent-based roster (+ co-located *.test.ts)
+│   │       ├── director.ts               #   conductor — phase-aware, resumable (checkpointer/threadId)
+│   │       ├── designer.ts               #   prompt → bounded GDD, user-confirmed
+│   │       ├── planner-interpreter.ts    #   (user-added) plan parsing/interpretation
+│   │       ├── researcher.ts             #   (user-added) game research → research/ + reports/
+│   │       ├── coder.ts                  #   systems/ + ui/ code (GDD + manifest + research injected)
+│   │       ├── image-reviewer.ts         #   rubric vs style bible, ≤3 retries → human
+│   │       ├── search-and-get.ts         #   OpenGameArt/Kenney trawl + license provenance
+│   │       ├── logic-evaluator.ts        #   truth-table rule verification
+│   │       ├── playtester.ts             #   headless input-driven invariants
+│   │       ├── tester.ts                 #   authors + runs tests.ts
+│   │       └── debugger.ts               #   minimal-diff repair
+│   ├── audio/playback.ts                 # Web Audio sfx/music layer (+ .test.ts)
+│   ├── auth/
+│   │   ├── clerk.ts                      # MULTIPLAYER player identity for generated games — never gates engine
+│   │   └── sendblue.ts                   # iMessage/SMS multiplayer + login channel (+ .test.ts)
+│   ├── compiler/
+│   │   ├── game-scaffold.ts              # writes the info.md tree + main.ts skeleton
+│   │   ├── asset-manifest.ts             # config/ asset↔variable JSON + bidirectional validation
+│   │   ├── vite-creator.ts               # Vite 8 project wrap
+│   │   └── vercel-deploy.ts              # programmatic REST deploy (each + .test.ts)
+│   ├── ecs/bitecs.ts                     # bitECS 0.4 helpers (+ .test.ts)
+│   ├── frontend/
+│   │   ├── api/chat.ts                   # route logic shared with app/api/chat
+│   │   └── components/
+│   │       ├── Chat.tsx                  # SSE consumer: tokens, tool badges, inline images
+│   │       └── utilities/index.ts        # CLI→chat evolution note + shared helpers
+│   ├── input/controller.ts               # typed action set: keyboard/touch/gamepad (+ .test.ts)
+│   ├── renderer/pixi-js.ts               # PixiJS v8 app/scene/sprite helpers (+ .test.ts)
+│   ├── storage/rx-db.ts                  # Zod-schemaed RxDB save/state methods (+ .test.ts)
+│   ├── testing/test-runner.ts            # runs a game's tests.ts via tsx child process (+ .test.ts)
+│   └── tools/
+│       ├── fetchers/                     # sfx.ts, music.ts (OpenGameArt/Kenney + license policy),
+│       │                                 #   fonts.ts (Google Fonts CDN) (+ fetchers.test.ts)
+│       ├── generators/                   # pixel-art.ts (procedural sprites), text-trees.ts (JSONIC
+│       │                                 #   dialogue) (+ generators.test.ts)
+│       ├── visualizers/                  # visual-direction.ts (style bible), prototype-still.ts,
+│       │                                 #   asset-review.ts (human gate)
+│       └── voice/voice.ts                # speech-to-text layer
+├── generations/                          # generated games land here (info.md = layout spec)
+│   └── info.md
+└── research/                             # verified API references + this architecture doc
+```
+
+## Example generated game (expected output per `generations/info.md`)
+
+```
+generations/harbor-light/                 # game name = head folder
+├── research/                             # researcher agent: genre/mechanic notes
+├── references/                           # visual-direction: reference images of similar games
+│   ├── ref-01-stardew-dock.png
+│   └── ref-02-palette-dusk.png
+├── reports/                              # structure rules etc.
+│   ├── gdd.md                            #   bounded design doc (designer agent, user-confirmed)
+│   ├── style.md                          #   STYLE BIBLE — palette/resolution/perspective/outline
+│   └── logic-eval.md                     #   logic-evaluator truth-table results
+├── assets/                               # every asset JSON-mapped to a code variable (see config/)
+│   ├── sprites/                          #   gemini image gen OR pixel-art.ts procedural
+│   │   ├── player-idle.png
+│   │   ├── player-walk.png
+│   │   └── fish-trout.png
+│   ├── background/parallax-harbor.png
+│   ├── images/title-card.png
+│   ├── scenes/dock-night.png
+│   ├── sfx/                              #   fetched via fetchers/sfx.ts
+│   │   ├── splash.ogg
+│   │   ├── reel.ogg
+│   │   └── LICENSE.json                  #   provenance — required for every fetched folder
+│   ├── music/
+│   │   ├── theme-dusk.ogg
+│   │   └── LICENSE.json
+│   ├── fonts/                            #   Google Fonts CDN downloads
+│   │   ├── pixelify-sans.woff2
+│   │   └── LICENSE.json
+│   └── text/                             #   JSONIC trees (generators/text-trees.ts)
+│       └── dialogue-harbormaster.json
+├── systems/                              # coder agent (research/ + gdd injected), on bitECS
+│   ├── rules/day-night.ts                #   global logic
+│   ├── animations/sprite-frames.ts
+│   ├── entities/player.ts                #   individual asset logic
+│   ├── entities/fish.ts
+│   ├── ai/fish-behavior.ts               #   entity/ui behavior logic
+│   ├── calls/save-sync.ts
+│   ├── physics/buoyancy.ts
+│   └── controller/bindings.ts            #   maps engine/input actions → game intents
+├── ui/                                   # IN-GAME UI, Mantine (user ruling)
+│   ├── components/Hud.tsx
+│   ├── components/PauseMenu.tsx
+│   └── methods/use-inventory.ts
+├── saves/                                # state
+│   ├── storage-schema.ts                 #   Zod schema for the save document
+│   └── rx-db.ts                          #   game-local RxDB wiring (engine/storage helpers)
+├── config/                               # JSON per asset tied to the variable used in code
+│   ├── assets.json                       #   manifest: file ↔ variable (asset-manifest.ts, validated)
+│   ├── style.json                        #   machine-readable style bible
+│   └── gdd.json                          #   machine-readable design doc
+├── render/
+│   └── stage.ts                          #   PixiJS v8 scene assembly (engine/renderer helpers)
+├── tests/
+│   └── tests.ts                          #   self-authored tests (tester agent → test-runner)
+└── main.ts                               # entry: init ECS world, load manifest, start render loop
 ```
 
 ## Reading the loops
@@ -122,3 +235,4 @@ flowchart TB
 - `config/` manifest exists before coder runs; validation pass is plain code, not an agent.
 - Every fetched asset has `LICENSE.json` provenance (GPL-3.0 compatibility).
 - Each chat turn = one director phase; state resumes from checkpointer + the game folder itself.
+- **Clerk does NOT gate the engine app.** The engine chat UI is open. Clerk (and Sendblue) are runtime layers generated games import for MULTIPLAYER player identity/login. Never add Clerk middleware/providers to the engine's `app/` shell.
