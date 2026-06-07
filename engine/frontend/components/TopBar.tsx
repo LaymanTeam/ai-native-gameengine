@@ -14,6 +14,7 @@ const LINKS = [
   { href: '/library', label: 'Library' },
   { href: '/schema', label: 'Schema' },
   { href: '/demo', label: 'Demo' },
+  { href: '/forge', label: 'Forge' },
 ] as const;
 
 function SparkMark() {

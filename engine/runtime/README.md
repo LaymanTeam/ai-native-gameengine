@@ -12,40 +12,30 @@ The reusable game runtime the AI-generated games target. The AI fills a **`GameD
   consumes (palette, assets, player+weapons, enemies, boss+patterns, waves, upgrades, arena,
   win/lose). `parseGameDefinition()` validates model output. ✅ drafted.
 
-## Loader (to build)
-- **`loader.ts`** — `mountGame(target, definition, assets)`: validates the definition, wires the
-  ECS world + systems + renderer, binds asset-manifest keys to sprites, runs the loop. The common
-  case needs **no per-game engine code** — only a `GameDefinition`.
+## Runtime decision: Phaser as the SDK ✅
+Rather than hand-build an ECS + systems library, the runtime uses **Phaser 3** (mature 2D engine:
+arcade physics, real collisions, tweens, input, scenes) — adopting hackathon2's key insight. This
+collapses most of M1: the deep "systems" already exist in Phaser; we write a thin, data-driven
+loader that turns a `GameDefinition` into a running game.
 
-## Systems library — `engine/runtime/systems/` (to build)
-Each: pure where possible, typed, individually testable. The AI never rewrites these.
-
-| System | Responsibility |
-|---|---|
-| `movement` | input/AI velocity → position; bounds, knockback |
-| `collision` | circle/AABB broadphase; player↔enemy, shot↔enemy, player↔pickup |
-| `combat` | weapons, projectiles, damage, i-frames, death → drops |
-| `spawn` | wave scheduling from `waves[]`; difficulty ramp |
-| `ai` | enemy roles: chaser / charger / shooter / brute / orbiter |
-| `boss` | timed attack patterns: spiral-shot / radial-burst / charge / summon / beam |
-| `pickups` | XP / health / magnet; level-up trigger |
-| `upgrades` | apply `upgrades[]` on level-up; selection UI hook |
-| `hud` | health, score, timer, wave, boss bar |
-| `vfx` | hit flashes, particles, screenshake, death poofs |
-| `audio` | sfx/music playback keyed to events (uses `engine/audio`) |
-| `render` | sprite draw, animation frames, camera, z-order (uses `engine/renderer/pixi-js`) |
+- **`phaser/forge-game.ts`** — `createForgeGame(parent, definition)`: a Phaser scene that reads the
+  `GameDefinition` and runs the game. Implements: WASD/arrow movement, auto-fire weapons, enemy AI
+  by role (chaser/shooter/charger/brute), timed waves, XP pickups → level-up upgrades, a boss with
+  attack patterns (radial burst / spiral), HUD (HP/score/level/timer), win (defeat-boss/survive) /
+  lose, restart (R). Client-only (dynamic-import in the browser). ✅
+- **`local-generator.ts`** — `buildLocalGameDefinition(prompt)`: keyless themed definition so the
+  runtime works with no API key. ✅
+- Frontend: `engine/frontend/components/PhaserGame.tsx` mounts it; **`/forge`** page = prompt →
+  generate definition → play in-app. ✅
 
 ## How the coder targets it (M2)
-Given the GDD, the coder emits a `GameDefinition` (validated by `parseGameDefinition`) with the
-**golden game** as in-context example. Novel mechanics may add a small custom system module; the
-typecheck loop bounds it. Everything else is data.
+Given the GDD, the coder/director produces a `GameDefinition` (validated by `parseGameDefinition`)
+— pure structured data, far more reliable than freeform code. Novel mechanics can later extend the
+runtime with custom Phaser behavior. The local generator is the keyless fallback.
 
-## Golden game (to build)
-One hand-authored `GameDefinition` (+ a hand-made sprite atlas) that hits the quality bar using
-ONLY the SDK — the reference the coder imitates and the SDK's acceptance test for M1.
-
-## Status
+## Next
 - [x] `game-definition.ts` contract
-- [ ] systems library
-- [ ] loader
-- [ ] golden game + atlas
+- [x] Phaser data-driven runtime (`createForgeGame`) + local generator + `/forge`
+- [ ] Wire the director/coder to emit `GameDefinition` (replace local generator on the key path)
+- [ ] Asset pipeline → generated sprites bound to `assets[]` keys (replaces shape textures)
+- [ ] Deploy generated games (scaffold the Phaser build → Vercel)
