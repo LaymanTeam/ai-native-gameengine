@@ -194,6 +194,7 @@ interface ForgeTestState {
   pendingSpawns: number;
   enemiesAlive: number;
   eliteEnemies: number;
+  firstEnemyHealth: number | null;
   bossHealth: number | null;
   playerPos: { x: number; y: number };
   assetKeys?: {
@@ -231,6 +232,7 @@ interface ForgeTestApi {
   press(action: TestAction, ms?: number): void;
   spawnEnemy(typeIndex: number): void;
   spawnContactEnemy(typeIndex: number): void;
+  spawnMeleeTargetEnemy(typeIndex: number): void;
   spawnEliteEnemy(typeIndex: number): void;
   damagePlayer(amount: number): void;
   damageFirstEnemy(amount: number): void;
@@ -704,6 +706,7 @@ const SAFE_STATE: ForgeTestState = {
   pendingSpawns: 0,
   enemiesAlive: 0,
   eliteEnemies: 0,
+  firstEnemyHealth: null,
   bossHealth: null,
   playerPos: { x: 0, y: 0 },
 };
@@ -1898,6 +1901,7 @@ class ForgeScene extends Phaser.Scene {
       pendingSpawns: this.pendingSpawns,
       enemiesAlive: this.enemies.children.size,
       eliteEnemies: this.countEliteEnemies(),
+      firstEnemyHealth: firstEnemy?.active ? ((firstEnemy.getData('hp') as number | undefined) ?? null) : null,
       bossHealth: this.boss?.active ? this.boss.getData('hp') as number : null,
       playerPos: { x: this.player.x, y: this.player.y },
       assetKeys: {
@@ -1970,6 +1974,21 @@ class ForgeScene extends Phaser.Scene {
       y: this.player.y,
     });
     spawned.setData('spawnUntil', this.time.now - 1);
+  }
+
+  spawnMeleeTargetEnemyForTest(typeIndex: number) {
+    const enemy = this.def.enemies[clamp(typeIndex, 0, this.def.enemies.length - 1)] ?? this.def.enemies[0]!;
+    this.suppressSpawnsUntil = this.time.now + 4200;
+    this.facing = 'right';
+    const spawned = this.spawnEnemy(enemy, false, {
+      x: this.clampWorldX(this.player.x + Math.max(this.def.player.radius + enemy.radius + 12, this.meleeRange * 0.78), 32),
+      y: this.player.y,
+    });
+    const hp = Math.max((spawned.getData('hp') as number | undefined) ?? 0, 90);
+    spawned.setData('hp', hp);
+    spawned.setData('maxHp', hp);
+    spawned.setData('spawnUntil', this.time.now - 1);
+    this.updateEnemyReadout(spawned, hp);
   }
 
   spawnEliteEnemyForTest(typeIndex: number) {
@@ -11699,6 +11718,9 @@ function installGameTestHooks(game: Phaser.Game, def: GameDefinition) {
     spawnContactEnemy(typeIndex) {
       try { activePlay()?.spawnContactEnemyForTest(typeIndex); } catch {}
     },
+    spawnMeleeTargetEnemy(typeIndex) {
+      try { activePlay()?.spawnMeleeTargetEnemyForTest(typeIndex); } catch {}
+    },
     spawnEliteEnemy(typeIndex) {
       try { activePlay()?.spawnEliteEnemyForTest(typeIndex); } catch {}
     },
@@ -12720,6 +12742,21 @@ function runSelfTestIfRequested() {
         `level ${levelBefore}->${afterUpgrade.level}, choosing ${afterUpgrade.choosingUpgrade}`,
       );
       if (api.getState().weaponAutoFire === false) {
+        api.killAllEnemies();
+        await sleep(120);
+        api.spawnMeleeTargetEnemy(2);
+        await sleep(180);
+        const meleeTargetBefore = api.getState();
+        api.press('attack');
+        await sleep(320);
+        const meleeTargetAfter = api.getState();
+        check(
+          'manual attack input damages pantry enemy',
+          meleeTargetBefore.firstEnemyHealth !== null &&
+            meleeTargetAfter.firstEnemyHealth !== null &&
+            meleeTargetAfter.firstEnemyHealth < meleeTargetBefore.firstEnemyHealth,
+          `hp ${meleeTargetBefore.firstEnemyHealth}->${meleeTargetAfter.firstEnemyHealth}, scene ${meleeTargetAfter.scene}`,
+        );
         api.killAllEnemies();
         await sleep(120);
         const contactHp = api.getState().playerHealth;
