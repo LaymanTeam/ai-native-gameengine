@@ -234,6 +234,7 @@ interface ForgeTestApi {
   spawnEliteEnemy(typeIndex: number): void;
   damagePlayer(amount: number): void;
   damageFirstEnemy(amount: number): void;
+  completeCurrentWave(): void;
   triggerComboReward(): void;
   stageVisualEvidence(): void;
   stagePublicDemo(): void;
@@ -1987,6 +1988,42 @@ class ForgeScene extends Phaser.Scene {
       .getArray()
       .find((child) => !(child as ArcadeImage).getData('boss')) as ArcadeImage | undefined;
     if (firstEnemy?.active) this.hitEnemy(undefined, firstEnemy, amount, false);
+  }
+
+  completeCurrentWaveForTest() {
+    const liveWaveIndexes = new Set<number>();
+    this.enemies.children.each((child) => {
+      const enemy = child as ArcadeImage;
+      const waveIndex = enemy.getData('waveIndex') as number | null;
+      if (enemy.active && !enemy.getData('boss') && waveIndex !== null) liveWaveIndexes.add(waveIndex);
+      return true;
+    });
+    const queuedWaveIndexes = new Set(this.spawnQueue.map((spawn) => spawn.waveIndex));
+    const pendingWaveIndexes = new Set(
+      [...this.pendingWaveSpawns.entries()]
+        .filter(([, count]) => count > 0)
+        .map(([waveIndex]) => waveIndex),
+    );
+    const candidates = [...this.activatedWaves]
+      .filter((waveIndex) => !this.clearedWaves.has(waveIndex))
+      .sort((a, b) => a - b);
+    const waveIndex =
+      candidates.find((candidate) => liveWaveIndexes.has(candidate)) ??
+      candidates.find((candidate) => queuedWaveIndexes.has(candidate)) ??
+      candidates.find((candidate) => pendingWaveIndexes.has(candidate)) ??
+      candidates[0];
+    if (waveIndex === undefined) return;
+    this.spawnQueue = this.spawnQueue.filter((spawn) => spawn.waveIndex !== waveIndex);
+    this.pendingWaveSpawns.set(waveIndex, 0);
+    this.pendingSpawns = [...this.pendingWaveSpawns.values()].reduce((sum, count) => sum + count, 0);
+    this.enemies.children.each((child) => {
+      const enemy = child as ArcadeImage;
+      if (!enemy.getData('boss') && (enemy.getData('waveIndex') as number | null) === waveIndex) enemy.destroy();
+      return true;
+    });
+    this.clearedWaves.add(waveIndex);
+    this.queueReadyGatedWaves();
+    this.maybeSpawnBoss();
   }
 
   triggerComboRewardForTest() {
@@ -4668,6 +4705,7 @@ class ForgeScene extends Phaser.Scene {
     this.time.delayedCall(delay, () => {
       this.pendingSpawns = Math.max(0, this.pendingSpawns - 1);
       if (waveIndex !== null) this.pendingWaveSpawns.set(waveIndex, Math.max(0, (this.pendingWaveSpawns.get(waveIndex) ?? 0) - 1));
+      if (!isBoss && waveIndex !== null && this.clearedWaves.has(waveIndex)) return;
       if (this.over || this.time.now < this.suppressSpawnsUntil) return;
       this.spawnEnemy(e, isBoss, point, eliteKind, waveIndex);
     });
@@ -11664,6 +11702,9 @@ function installGameTestHooks(game: Phaser.Game, def: GameDefinition) {
     damageFirstEnemy(amount) {
       try { activePlay()?.damageFirstEnemyForTest(amount); } catch {}
     },
+    completeCurrentWave() {
+      try { activePlay()?.completeCurrentWaveForTest(); } catch {}
+    },
     triggerComboReward() {
       try { activePlay()?.triggerComboRewardForTest(); } catch {}
     },
@@ -11906,6 +11947,28 @@ function runSelfTestIfRequested() {
             afterStart.activatedWaveCount === 1,
           `waves ${afterStart.waveCount}, gated ${afterStart.gatedWaveCount}, activated ${afterStart.activatedWaveCount}`,
         );
+        api.completeCurrentWave();
+        await sleep(1800);
+        const afterFirstWaveClear = api.getState();
+        check(
+          'clearing first pantry wave activates second wave',
+          afterFirstWaveClear.wavesCleared >= 1 &&
+            afterFirstWaveClear.activatedWaveCount === 2 &&
+            afterFirstWaveClear.enemiesAlive > 0 &&
+            afterFirstWaveClear.bossHealth === null,
+          `cleared ${afterFirstWaveClear.wavesCleared}, activated ${afterFirstWaveClear.activatedWaveCount}, enemies ${afterFirstWaveClear.enemiesAlive}, boss ${afterFirstWaveClear.bossHealth}`,
+        );
+        api.completeCurrentWave();
+        await sleep(1200);
+        const afterSecondWaveClear = api.getState();
+        check(
+          'clearing second pantry wave starts boss fight',
+          afterSecondWaveClear.wavesCleared >= 2 &&
+            afterSecondWaveClear.bossHealth !== null,
+          `cleared ${afterSecondWaveClear.wavesCleared}, boss ${afterSecondWaveClear.bossHealth}`,
+        );
+        api.press('restart');
+        await sleep(800);
       }
       if (afterStart.runtimeTemplate === 'flight-shooter') {
         check(
