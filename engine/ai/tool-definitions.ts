@@ -20,17 +20,25 @@ import { buildLocalGdd, gddSchema, renderGddMarkdown } from './agents/designer';
 import type { GameDesignDocument } from './agents/designer';
 import { StyleBibleSchema, styleBibleToPromptPreamble, type StyleBible } from '../tools/visualizers/visual-direction';
 import type { EmitEvent, EngineEvent } from './events';
-import { runDesignPipeline } from './pipelines/design';
-import { AssetPlanSchema, runAssetsPipeline, type AssetPlan } from './pipelines/assets';
-import { runBuildPipeline } from './pipelines/build';
-import { runVerifyPipeline } from './pipelines/verify';
-import { runDeployPipeline } from './pipelines/deploy';
-import { STYLE_BIBLE_FILENAME, resolveGameRoot } from './pipelines/shared';
+import { AssetPlanSchema, type AssetPlan } from './pipelines/asset-schema';
 
 // Back-compat re-export: the route and frontend import these from here.
 export type { EmitEvent, EngineEvent };
 
 const TOOLS_LOG_PREFIX = '[engine/ai/tool-definitions]';
+const STYLE_BIBLE_FILENAME = 'style-bible.json';
+
+function defaultGenerationsDir(): string {
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), 'generations');
+}
+
+function resolveGameRoot(game: string): string {
+  const slug = game.trim();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+    throw new Error(`${TOOLS_LOG_PREFIX} invalid game slug: ${JSON.stringify(game)}`);
+  }
+  return path.join(defaultGenerationsDir(), slug);
+}
 
 /**
  * Keyless design turn — runs the design phase without the Gemini director (no GOOGLE_API_KEY).
@@ -39,6 +47,7 @@ const TOOLS_LOG_PREFIX = '[engine/ai/tool-definitions]';
 export async function localDesignTurn(emit: EmitEvent, prompt: string): Promise<string> {
   emit({ type: 'tool_start', name: 'design_game', detail: 'designing (local)' });
   const gdd = buildLocalGdd(prompt);
+  const { runDesignPipeline } = await import('./pipelines/design');
   const { game } = await runDesignPipeline({ gdd, researchTopics: [], emit });
   emit({ type: 'artifact', kind: 'gdd', title: gdd.title, markdown: renderGddMarkdown(gdd) });
   emit({ type: 'tool_end', name: 'design_game', ok: true, detail: game });
@@ -58,6 +67,7 @@ export function makeDirectorTools(emit: EmitEvent) {
       console.log(`${TOOLS_LOG_PREFIX} design_game title=${gdd.title} topics=${researchTopics.length}`);
       emit({ type: 'tool_start', name: 'design_game', detail: gdd.title });
       try {
+        const { runDesignPipeline } = await import('./pipelines/design');
         const result = await runDesignPipeline({ gdd, researchTopics, emit });
         emit({ type: 'artifact', kind: 'gdd', title: gdd.title, markdown: renderGddMarkdown(gdd) });
         emit({ type: 'tool_end', name: 'design_game', ok: true, detail: result.game });
@@ -150,6 +160,7 @@ export function makeDirectorTools(emit: EmitEvent) {
       console.log(`${TOOLS_LOG_PREFIX} produce_assets game=${game} images=${plan.images.length}`);
       emit({ type: 'tool_start', name: 'produce_assets', detail: `${plan.images.length} images, ${plan.sfx.length + plan.music.length} audio, ${plan.fonts.length} fonts` });
       try {
+        const { runAssetsPipeline } = await import('./pipelines/assets');
         const result = await runAssetsPipeline({ game, gameRoot: resolveGameRoot(game), plan, emit });
         emit({ type: 'tool_end', name: 'produce_assets', ok: result.ok, detail: `${result.produced.length} images, ${result.audioSaved} audio, ${result.fontFaces} fonts` });
         const reviews = result.produced
@@ -186,6 +197,7 @@ export function makeDirectorTools(emit: EmitEvent) {
       console.log(`${TOOLS_LOG_PREFIX} build_game game=${game}`);
       emit({ type: 'tool_start', name: 'build_game', detail: game });
       try {
+        const { runBuildPipeline } = await import('./pipelines/build');
         const result = await runBuildPipeline({ game, gameRoot: resolveGameRoot(game), instructions, emit });
         emit({ type: 'tool_end', name: 'build_game', ok: result.ok, detail: result.refused ?? (result.ok ? 'green' : 'issues') });
         if (result.refused) return `REFUSED: ${result.refused}`;
@@ -222,6 +234,7 @@ export function makeDirectorTools(emit: EmitEvent) {
       console.log(`${TOOLS_LOG_PREFIX} verify_game game=${game}`);
       emit({ type: 'tool_start', name: 'verify_game', detail: game });
       try {
+        const { runVerifyPipeline } = await import('./pipelines/verify');
         const report = await runVerifyPipeline({ game, gameRoot: resolveGameRoot(game), emit });
         emit({ type: 'tool_end', name: 'verify_game', ok: report.ok, detail: report.ok ? 'all gates green' : 'gates failed' });
         return report.ok
@@ -251,6 +264,7 @@ export function makeDirectorTools(emit: EmitEvent) {
       console.log(`${TOOLS_LOG_PREFIX} deploy_game game=${game}`);
       emit({ type: 'tool_start', name: 'deploy_game', detail: game });
       try {
+        const { runDeployPipeline } = await import('./pipelines/deploy');
         const result = await runDeployPipeline({ game, gameRoot: resolveGameRoot(game), emit });
         emit({ type: 'tool_end', name: 'deploy_game', ok: result.ok, detail: result.refused ?? result.url });
         if (result.refused) return `REFUSED: ${result.refused}`;

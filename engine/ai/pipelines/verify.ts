@@ -18,7 +18,6 @@ import { runTypecheck } from '../agents/coder';
 import { createLogicEvaluatorAgent, type LogicVerdict } from '../agents/logic-evaluator';
 import { PlaytestReportSchema, type PlaytestReport } from '../agents/playtester';
 import { validateManifest } from '../../compiler/asset-manifest';
-import { runGameTests } from '../../testing/test-runner';
 import type { GameDesignDocument } from '../agents/designer';
 import type { EmitEvent } from '../events';
 import {
@@ -38,6 +37,18 @@ export interface VerificationReport {
   tests: { passed: boolean; failures: string[] };
   logic: { ok: boolean; detail: string };
   playtest: { ok: boolean; detail: string };
+}
+
+interface TestFailure {
+  message: string;
+  stack: string[];
+}
+
+interface TestRunResult {
+  passed: boolean;
+  failures: TestFailure[];
+  stdout: string;
+  stderr: string;
 }
 
 export interface VerifyDeps {
@@ -78,7 +89,7 @@ async function evaluateLogicWithAgent(gdd: GameDesignDocument, game: string): Pr
 function runPlaytestSubprocess(gameRoot: string): Promise<{ ok: boolean; detail: string }> {
   return new Promise((resolve) => {
     const child = spawn('npx', ['tsx', path.join('engine', 'testing', 'playtest-runner.ts'), gameRoot], {
-      cwd: process.cwd(),
+      cwd: /* turbopackIgnore: true */ process.cwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -116,6 +127,67 @@ function runPlaytestSubprocess(gameRoot: string): Promise<{ ok: boolean; detail:
   });
 }
 
+const FAILURE_LINE = /\b(FAIL(?:ED)?|AssertionError|Error:)\b/;
+const STACK_LINE = /^\s+at\s/;
+
+function parseFailures(output: string): TestFailure[] {
+  const failures: TestFailure[] = [];
+  const lines = output.split(/\r?\n/);
+  let current: TestFailure | null = null;
+  for (const line of lines) {
+    if (FAILURE_LINE.test(line)) {
+      current = { message: line.trim(), stack: [] };
+      failures.push(current);
+    } else if (current && STACK_LINE.test(line)) {
+      current.stack.push(line.trim());
+    } else if (current && line.trim() === '') {
+      current = null;
+    }
+  }
+  return failures;
+}
+
+async function runGeneratedGameTests(testFile: string): Promise<TestRunResult> {
+  if (typeof testFile !== 'string' || testFile.trim().length === 0) {
+    throw new Error(`${PIPELINES_LOG_PREFIX} runGeneratedGameTests: test file must be non-empty`);
+  }
+  await fs.access(/* turbopackIgnore: true */ testFile).catch(() => {
+    throw new Error(`${PIPELINES_LOG_PREFIX} runGeneratedGameTests: test file not found at ${testFile}`);
+  });
+
+  return new Promise<TestRunResult>((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const child = spawn(/* turbopackIgnore: true */ 'npx', ['tsx', testFile], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, 120_000);
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(new Error(`${PIPELINES_LOG_PREFIX} runGeneratedGameTests: failed to spawn npx: ${error.message}`));
+    });
+    child.on('close', (exitCode) => {
+      clearTimeout(timer);
+      resolve({
+        passed: exitCode === 0 && !timedOut,
+        stdout,
+        stderr,
+        failures: exitCode === 0 && !timedOut ? [] : parseFailures(`${stdout}\n${stderr}`),
+      });
+    });
+  });
+}
+
 /** Run every gate and persist reports/verification.json. */
 export async function runVerifyPipeline(
   args: { game: string; gameRoot: string; emit: EmitEvent },
@@ -141,7 +213,7 @@ export async function runVerifyPipeline(
   );
   const tests = await gate(
     'tests',
-    () => runGameTests(path.join(gameRoot, 'tests', 'tests.ts')),
+    () => runGeneratedGameTests(path.join(gameRoot, 'tests', 'tests.ts')),
     (r) => ({ ok: r.passed, text: r.passed ? 'green' : `${r.failures.length} failing` }),
   );
 

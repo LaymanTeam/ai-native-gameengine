@@ -10,6 +10,7 @@ dist/
 .next-trash-*/
 .fuse_hidden*
 tsconfig.tsbuildinfo
+.playwright-mcp/
 
 # AI-generated game output (keep the authoritative spec tracked)
 generations/*

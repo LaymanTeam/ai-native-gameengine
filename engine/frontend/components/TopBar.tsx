@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Shared top navigation across the engine UI surfaces (Studio chat, Library, Schema).
+ * Shared top navigation across the engine UI surfaces.
  * Visual system only — no product name/wordmark yet (pending team decision); a neutral
  * spark glyph stands in for the brand mark.
  */
@@ -17,6 +17,10 @@ const LINKS = [
   { href: '/forge', label: 'Forge' },
 ] as const;
 
+const GAME_SURFACE_LINKS = [
+  { href: '/forge?play', label: 'Bakery demo' },
+] as const;
+
 function SparkMark() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--forge-accent)" strokeWidth="1.7" aria-hidden>
@@ -27,13 +31,15 @@ function SparkMark() {
 
 export function TopBar() {
   const pathname = usePathname();
+  const isGameSurface = pathname.startsWith('/forge') || pathname.startsWith('/play');
+  const links = isGameSurface ? GAME_SURFACE_LINKS : LINKS;
   return (
     <Box
       component="header"
       h={64}
       px="xl"
       style={{
-        position: 'sticky',
+        position: isGameSurface ? 'relative' : 'sticky',
         top: 0,
         zIndex: 20,
         background: 'var(--forge-bone)',
@@ -45,8 +51,9 @@ export function TopBar() {
           <SparkMark />
         </Anchor>
         <Group gap="lg">
-          {LINKS.map((link) => {
-            const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
+          {links.map((link) => {
+            const activeHref = link.href.split('?')[0] ?? link.href;
+            const active = activeHref === '/' ? pathname === '/' : pathname.startsWith(activeHref);
             return (
               <Anchor
                 key={link.href}
@@ -65,9 +72,9 @@ export function TopBar() {
         <Group gap="lg" ml="auto" wrap="nowrap">
           <Group gap={8} wrap="nowrap">
             <Box w={6} h={6} style={{ borderRadius: '50%', background: 'var(--forge-accent)' }} />
-            <Text size="sm" c="dimmed">ready</Text>
+            <Text size="sm" c="dimmed">{isGameSurface ? 'no API spend' : 'ready'}</Text>
           </Group>
-          <Avatar size={30} radius="xl" color="gray" variant="light">T</Avatar>
+          {!isGameSurface && <Avatar size={30} radius="xl" color="gray" variant="light">T</Avatar>}
         </Group>
       </Group>
     </Box>

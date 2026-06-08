@@ -1,0 +1,9 @@
+{
+  "id": "bakery-portal-raid",
+  "label": "Haunted bakery raid",
+  "prompt": "a haunted bakery room-clearing boss raid where a chef fights enchanted pastries and the Overproofed King with kitchen magic",
+  "expectedRuntimeTemplate": "arena-action",
+  "expectedWinCondition": "defeat-boss",
+  "expectedBoss": "Overproofed King",
+  "expectedLeadPattern": "summon"
+}

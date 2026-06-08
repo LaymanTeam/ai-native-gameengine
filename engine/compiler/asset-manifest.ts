@@ -92,7 +92,7 @@ export interface ValidationResult {
 
 async function pathExists(target: string): Promise<boolean> {
   try {
-    await stat(target);
+    await stat(/* turbopackIgnore: true */ target);
     return true;
   } catch (err) {
     if (
@@ -148,7 +148,7 @@ export function buildManifest(game: string, entries: readonly AssetEntry[]): Ass
 
 /** Resolve the config/ directory of a game root. */
 function configDir(gameRoot: string): string {
-  return path.join(gameRoot, 'config');
+  return path.join(/* turbopackIgnore: true */ gameRoot, 'config');
 }
 
 /**
@@ -163,7 +163,7 @@ export async function writeManifest(gameRoot: string, manifest: AssetManifest): 
   const validated = AssetManifestSchema.parse(manifest);
   const target = path.join(configDir(gameRoot), MANIFEST_FILENAME);
   try {
-    await writeFile(target, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
+    await writeFile(/* turbopackIgnore: true */ target, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
     console.log(`${MANIFEST_LOG_PREFIX} writeManifest success path="${target}"`);
     return target;
   } catch (err) {
@@ -176,7 +176,7 @@ export async function writeManifest(gameRoot: string, manifest: AssetManifest): 
 export async function readManifest(gameRoot: string): Promise<AssetManifest> {
   const target = path.join(configDir(gameRoot), MANIFEST_FILENAME);
   try {
-    const raw = await readFile(target, 'utf8');
+    const raw = await readFile(/* turbopackIgnore: true */ target, 'utf8');
     const parsed = AssetManifestSchema.parse(JSON.parse(raw));
     console.log(
       `${MANIFEST_LOG_PREFIX} readManifest success path="${target}" entries=${Object.keys(parsed.assets).length}`,
@@ -198,7 +198,7 @@ export async function writeStyle(gameRoot: string, style: StyleManifest): Promis
   const validated = StyleManifestSchema.parse(style);
   const target = path.join(configDir(gameRoot), STYLE_FILENAME);
   try {
-    await writeFile(target, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
+    await writeFile(/* turbopackIgnore: true */ target, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
     console.log(`${MANIFEST_LOG_PREFIX} writeStyle success path="${target}"`);
     return target;
   } catch (err) {
@@ -211,7 +211,7 @@ export async function writeStyle(gameRoot: string, style: StyleManifest): Promis
 export async function readStyle(gameRoot: string): Promise<StyleManifest> {
   const target = path.join(configDir(gameRoot), STYLE_FILENAME);
   try {
-    const raw = await readFile(target, 'utf8');
+    const raw = await readFile(/* turbopackIgnore: true */ target, 'utf8');
     const parsed = StyleManifestSchema.parse(JSON.parse(raw));
     console.log(`${MANIFEST_LOG_PREFIX} readStyle success path="${target}"`);
     return parsed;
@@ -225,7 +225,7 @@ export async function readStyle(gameRoot: string): Promise<StyleManifest> {
 async function collectCode(dir: string, acc: string[]): Promise<void> {
   let entries: import('node:fs').Dirent[];
   try {
-    entries = await readdir(dir, { withFileTypes: true });
+    entries = await readdir(/* turbopackIgnore: true */ dir, { withFileTypes: true });
   } catch (err) {
     if (
       err &&
@@ -239,11 +239,11 @@ async function collectCode(dir: string, acc: string[]): Promise<void> {
   }
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue;
-    const full = path.join(dir, entry.name);
+    const full = path.join(/* turbopackIgnore: true */ dir, entry.name);
     if (entry.isDirectory()) {
       await collectCode(full, acc);
     } else if (entry.isFile()) {
-      acc.push(await readFile(full, 'utf8'));
+      acc.push(await readFile(/* turbopackIgnore: true */ full, 'utf8'));
     }
   }
 }
@@ -272,11 +272,11 @@ export async function validateManifest(
   // Collect all code that may reference asset variables.
   const codeChunks: string[] = [];
   for (const dir of ['systems', 'ui', 'render']) {
-    await collectCode(path.join(gameRoot, dir), codeChunks);
+    await collectCode(path.join(/* turbopackIgnore: true */ gameRoot, dir), codeChunks);
   }
-  const mainPath = path.join(gameRoot, 'main.ts');
+  const mainPath = path.join(/* turbopackIgnore: true */ gameRoot, 'main.ts');
   if (await pathExists(mainPath)) {
-    codeChunks.push(await readFile(mainPath, 'utf8'));
+    codeChunks.push(await readFile(/* turbopackIgnore: true */ mainPath, 'utf8'));
   }
   const code = codeChunks.join('\n');
 
@@ -284,7 +284,7 @@ export async function validateManifest(
 
   for (const [variable, entry] of Object.entries(validated.assets)) {
     // 1. asset existence on disk
-    const assetAbs = path.join(gameRoot, entry.path);
+    const assetAbs = path.join(/* turbopackIgnore: true */ gameRoot, entry.path);
     if (!(await pathExists(assetAbs))) {
       issues.push({
         kind: 'missing-asset',

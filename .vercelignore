@@ -1,0 +1,9 @@
+.env
+.env.*
+.vercel
+.git
+node_modules
+.next
+dist
+generations
+tsconfig.tsbuildinfo

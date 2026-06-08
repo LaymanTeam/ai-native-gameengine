@@ -10,13 +10,13 @@
  */
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { tool } from 'langchain';
 import * as z from 'zod';
 import { HumanMessage } from '@langchain/core/messages';
 import { createCoderAgent, coderThreadConfig } from '../agents/coder';
 import { createTesterAgent } from '../agents/tester';
 import { createDebuggerAgent, type StructuredFailure } from '../agents/debugger';
-import { runGameTests, type TestRunResult } from '../../testing/test-runner';
 import { validateManifest } from '../../compiler/asset-manifest';
 import { styleBibleToPromptPreamble } from '../../tools/visualizers/visual-direction';
 import type { GameDesignDocument } from '../agents/designer';
@@ -41,6 +41,22 @@ export interface BuildResult {
   testsPassed: boolean;
   testFailures: number;
   fixCycles: number;
+}
+
+interface TestFailure {
+  message: string;
+  stack: string[];
+}
+
+interface TestRunResult {
+  passed: boolean;
+  exitCode: number | null;
+  signal: string | null;
+  timedOut: boolean;
+  durationMs: number;
+  stdout: string;
+  stderr: string;
+  failures: TestFailure[];
 }
 
 export interface BuildDeps {
@@ -112,6 +128,73 @@ const HEADLESS_BRIDGE_SPEC =
   'isWin(): boolean; isLose(): boolean; availableActions(): string[] }. It must drive the real ' +
   'game systems (bitECS world) WITHOUT PixiJS/DOM — pure simulation, importable under Node.';
 
+const FAILURE_LINE = /\b(FAIL(?:ED)?|AssertionError|Error:)\b/;
+const STACK_LINE = /^\s+at\s/;
+
+function parseFailures(output: string): TestFailure[] {
+  const failures: TestFailure[] = [];
+  const lines = output.split(/\r?\n/);
+  let current: TestFailure | null = null;
+  for (const line of lines) {
+    if (FAILURE_LINE.test(line)) {
+      current = { message: line.trim(), stack: [] };
+      failures.push(current);
+    } else if (current && STACK_LINE.test(line)) {
+      current.stack.push(line.trim());
+    } else if (current && line.trim() === '') {
+      current = null;
+    }
+  }
+  return failures;
+}
+
+async function runGeneratedGameTests(testFile: string): Promise<TestRunResult> {
+  if (typeof testFile !== 'string' || testFile.trim().length === 0) {
+    throw new Error(`${PIPELINES_LOG_PREFIX} runGeneratedGameTests: test file must be non-empty`);
+  }
+  await fs.access(/* turbopackIgnore: true */ testFile).catch(() => {
+    throw new Error(`${PIPELINES_LOG_PREFIX} runGeneratedGameTests: test file not found at ${testFile}`);
+  });
+
+  const startedAt = Date.now();
+  return new Promise<TestRunResult>((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const child = spawn(/* turbopackIgnore: true */ 'npx', ['tsx', testFile], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, 120_000);
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(new Error(`${PIPELINES_LOG_PREFIX} runGeneratedGameTests: failed to spawn npx: ${error.message}`));
+    });
+    child.on('close', (exitCode, signal) => {
+      clearTimeout(timer);
+      resolve({
+        passed: exitCode === 0 && !timedOut,
+        exitCode,
+        signal: signal ?? null,
+        timedOut,
+        durationMs: Date.now() - startedAt,
+        stdout,
+        stderr,
+        failures: exitCode === 0 && !timedOut ? [] : parseFailures(`${stdout}\n${stderr}`),
+      });
+    });
+  });
+}
+
 async function defaultInvokeCoder(args: { gameRoot: string; game: string; brief: string }): Promise<string> {
   const coder = createCoderAgent({ gameDir: args.gameRoot, tools: makeCoderFileTools(args.gameRoot) });
   const result = await coder.invoke(
@@ -140,7 +223,7 @@ async function defaultAuthorAndRunTests(args: {
     runner: {
       // Adapt the engine TestRunResult to the tester agent's own result shape.
       run: async ({ testFile }) => {
-        lastRun = await runGameTests(resolveInside(args.gameRoot, testFile));
+        lastRun = await runGeneratedGameTests(resolveInside(args.gameRoot, testFile));
         return {
           passed: lastRun.passed,
           total: lastRun.failures.length, // total unknown from raw output; failures drive routing
@@ -163,7 +246,7 @@ async function defaultAuthorAndRunTests(args: {
   );
   if (lastRun) return lastRun;
   // Tester never ran the suite — run it directly so the gate is code-enforced regardless.
-  return runGameTests(path.join(args.gameRoot, 'tests', 'tests.ts'));
+  return runGeneratedGameTests(path.join(args.gameRoot, 'tests', 'tests.ts'));
 }
 
 async function defaultFixFailures(args: {
@@ -210,7 +293,7 @@ export async function runBuildPipeline(
   const invokeCoder = deps.invokeCoder ?? defaultInvokeCoder;
   const authorAndRunTests = deps.authorAndRunTests ?? defaultAuthorAndRunTests;
   const fixFailures = deps.fixFailures ?? defaultFixFailures;
-  const runTests = deps.runTests ?? ((testFile: string) => runGameTests(testFile));
+  const runTests = deps.runTests ?? ((testFile: string) => runGeneratedGameTests(testFile));
   const { game, gameRoot, emit } = args;
 
   const refusal = (reason: string): BuildResult => ({

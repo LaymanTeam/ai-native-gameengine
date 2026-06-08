@@ -15,6 +15,7 @@
 import * as z from 'zod';
 import type { RxDatabase, RxJsonSchema } from 'rxdb';
 import { createTypedCollection, type TypedCollection } from './rx-db';
+export { resolveAssetUrl } from './asset-url';
 
 const RUNTIME_ASSETS_LOG_PREFIX = '[engine/storage/runtime-assets]';
 
@@ -159,26 +160,4 @@ export async function createRuntimeAssetStore(
       return collection.remove(id);
     },
   };
-}
-
-/**
- * Resolve any asset reference to a loadable URL — THE single helper game code calls so the
- * build-time/runtime split stays invisible at call sites:
- * - data: URLs pass through (runtime assets already resolved from the store),
- * - "runtime:<file>" maps to the public-dir convention URL /runtime/<file>,
- * - anything else is returned as-is (an imported, fingerprinted build-time asset URL).
- */
-export function resolveAssetUrl(ref: string): string {
-  if (!ref || typeof ref !== 'string') {
-    throw new Error(`${RUNTIME_ASSETS_LOG_PREFIX} resolveAssetUrl: ref must be a non-empty string`);
-  }
-  if (ref.startsWith('data:')) return ref;
-  if (ref.startsWith('runtime:')) {
-    const file = ref.slice('runtime:'.length).replace(/^\/+/, '');
-    if (file.length === 0) {
-      throw new Error(`${RUNTIME_ASSETS_LOG_PREFIX} resolveAssetUrl: empty runtime: reference`);
-    }
-    return `/runtime/${file}`;
-  }
-  return ref;
 }

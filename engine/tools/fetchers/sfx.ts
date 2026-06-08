@@ -225,7 +225,7 @@ export async function downloadCandidates(
     throw new Error(`${SFX_LOG_PREFIX} downloadCandidates: destDir must be a non-empty string`);
   }
 
-  await mkdir(destDir, { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ destDir, { recursive: true });
   const saved: LicenseRecord[] = [];
   const rejected: FetchResult['rejected'] = [];
   const usedNames = new Set<string>();
@@ -251,13 +251,13 @@ export async function downloadCandidates(
       name = `${basename(name, ext)}_${usedNames.size}${ext}`;
     }
     usedNames.add(name);
-    const filePath = join(destDir, name);
+    const filePath = join(/* turbopackIgnore: true */ destDir, name);
 
     try {
       const res = await fetchImpl(c.downloadUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buf = Buffer.from(await res.arrayBuffer());
-      await writeFile(filePath, buf);
+      await writeFile(/* turbopackIgnore: true */ filePath, buf);
       const record: LicenseRecord = {
         file: name,
         title: c.title,
@@ -280,8 +280,8 @@ export async function downloadCandidates(
 
   let licenseFile: string | undefined;
   if (saved.length > 0) {
-    licenseFile = join(destDir, 'LICENSE.json');
-    await writeFile(licenseFile, JSON.stringify(saved, null, 2));
+    licenseFile = join(/* turbopackIgnore: true */ destDir, 'LICENSE.json');
+    await writeFile(/* turbopackIgnore: true */ licenseFile, JSON.stringify(saved, null, 2));
     console.log(`${SFX_LOG_PREFIX} wrote provenance file=${licenseFile} entries=${saved.length}`);
   }
 

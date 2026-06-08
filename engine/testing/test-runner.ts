@@ -72,7 +72,7 @@ export async function runGameTests(
   if (typeof testFilePath !== 'string' || testFilePath.trim().length === 0) {
     throw new Error(`${TESTRUNNER_LOG_PREFIX} runGameTests: testFilePath must be a non-empty string`);
   }
-  await access(testFilePath).catch(() => {
+  await access(/* turbopackIgnore: true */ testFilePath).catch(() => {
     throw new Error(`${TESTRUNNER_LOG_PREFIX} runGameTests: test file not found at ${testFilePath}`);
   });
 
@@ -86,7 +86,7 @@ export async function runGameTests(
     let stderr = '';
     let timedOut = false;
 
-    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(/* turbopackIgnore: true */ cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const timer = setTimeout(() => {
       timedOut = true;
       console.error(`${TESTRUNNER_LOG_PREFIX} timeout after ${timeoutMs}ms — killing child`);

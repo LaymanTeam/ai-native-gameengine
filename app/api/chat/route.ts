@@ -7,8 +7,7 @@
  * the client sends only the new user message + its threadId.
  */
 import { isAIMessageChunk } from '@langchain/core/messages';
-import { createDirectorAgent, directorThreadConfig } from '../../../engine/ai/agents/director';
-import { localDesignTurn, type EngineEvent } from '../../../engine/ai/tool-definitions';
+import type { EngineEvent } from '../../../engine/ai/events';
 
 export const runtime = 'nodejs';
 // Full phase turns (code/verify/deploy) can run long; Fluid Compute allows up to 300s.
@@ -56,11 +55,13 @@ export async function POST(req: Request): Promise<Response> {
         // design phase locally so the engine still produces a real artifact (the GDD).
         if (!process.env['GOOGLE_API_KEY']) {
           console.log(`${ROUTE_LOG_PREFIX} no GOOGLE_API_KEY — running keyless local design turn`);
+          const { localDesignTurn } = await import('../../../engine/ai/tool-definitions');
           const summary = await localDesignTurn(emit, message);
           for (const word of summary.split(/(\s+)/)) emit({ type: 'token', text: word });
           emit({ type: 'done' });
           return; // the `finally` closes the controller (avoid double-close)
         }
+        const { createDirectorAgent, directorThreadConfig } = await import('../../../engine/ai/agents/director');
         const agent = createDirectorAgent(emit);
         // streamMode 'messages' yields [messageChunk, metadata] tuples token-by-token,
         // including tool-phase chunks (research/langchain-agents-chains-gemini.md).

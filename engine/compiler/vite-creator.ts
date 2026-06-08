@@ -78,7 +78,7 @@ const DEFAULT_DEV_DEPENDENCIES: Readonly<Record<string, string>> = Object.freeze
 
 async function fileExists(target: string): Promise<boolean> {
   try {
-    await access(target);
+    await access(/* turbopackIgnore: true */ target);
     return true;
   } catch {
     return false;
@@ -209,7 +209,7 @@ export async function createViteProject(options: ViteCreatorOptions): Promise<Vi
   const overwrite = parsed.data.overwrite ?? true;
   const dependencies = { ...DEFAULT_GAME_DEPENDENCIES, ...(parsed.data.dependencies ?? {}) };
 
-  const absGameDir = path.resolve(gameDir);
+  const absGameDir = path.resolve(/* turbopackIgnore: true */ gameDir);
   console.log(
     `${VITE_LOG_PREFIX} createViteProject start name=${name} gameDir=${absGameDir} entry=${entry} overwrite=${overwrite}`,
   );
@@ -220,7 +220,7 @@ export async function createViteProject(options: ViteCreatorOptions): Promise<Vi
     throw new Error(`${VITE_LOG_PREFIX} createViteProject: gameDir does not exist: ${absGameDir}`);
   }
   // Ensure dir exists (no-op if already present); guards against partial trees.
-  await mkdir(absGameDir, { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ absGameDir, { recursive: true });
 
   const files: Array<{ name: string; content: string }> = [
     { name: 'vite.config.ts', content: buildViteConfig() },
@@ -234,13 +234,13 @@ export async function createViteProject(options: ViteCreatorOptions): Promise<Vi
   const skipped: string[] = [];
 
   for (const file of files) {
-    const target = path.join(absGameDir, file.name);
+    const target = path.join(/* turbopackIgnore: true */ absGameDir, file.name);
     if (!overwrite && (await fileExists(target))) {
       console.log(`${VITE_LOG_PREFIX} skip existing file=${file.name}`);
       skipped.push(target);
       continue;
     }
-    await writeFile(target, file.content, 'utf8');
+    await writeFile(/* turbopackIgnore: true */ target, file.content, 'utf8');
     console.log(`${VITE_LOG_PREFIX} wrote file=${file.name} bytes=${Buffer.byteLength(file.content, 'utf8')}`);
     written.push(target);
   }

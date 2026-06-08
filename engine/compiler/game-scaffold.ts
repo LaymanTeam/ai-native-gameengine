@@ -105,7 +105,7 @@ export function slugifyGameName(rawName: string): string {
 
 /** Default generations directory: <cwd>/generations. */
 export function defaultGenerationsDir(): string {
-  return path.resolve(process.cwd(), 'generations');
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), 'generations');
 }
 
 async function pathExists(target: string): Promise<boolean> {
@@ -171,7 +171,7 @@ export async function scaffoldGame(
     throw new Error(msg);
   }
 
-  const gameRoot = path.join(generationsDir, gameName);
+  const gameRoot = path.join(/* turbopackIgnore: true */ generationsDir, gameName);
   console.log(
     `${SCAFFOLD_LOG_PREFIX} scaffold start name="${rawGameName}" slug="${gameName}" root="${gameRoot}"`,
   );
@@ -191,19 +191,19 @@ export async function scaffoldGame(
     directories.push(gameRoot);
 
     for (const rel of GAME_TREE) {
-      const abs = path.join(gameRoot, rel);
+      const abs = path.join(/* turbopackIgnore: true */ gameRoot, rel);
       await mkdir(abs, { recursive: true });
       directories.push(abs);
     }
 
     // Seed skeleton files only if absent (never clobber generated content on re-runs).
-    const mainAbs = path.join(gameRoot, GAME_FILES.main);
+    const mainAbs = path.join(/* turbopackIgnore: true */ gameRoot, GAME_FILES.main);
     if (!(await pathExists(mainAbs))) {
       await writeFile(mainAbs, mainSkeleton(gameName), 'utf8');
     }
     files.push(mainAbs);
 
-    const testsAbs = path.join(gameRoot, GAME_FILES.tests);
+    const testsAbs = path.join(/* turbopackIgnore: true */ gameRoot, GAME_FILES.tests);
     if (!(await pathExists(testsAbs))) {
       await writeFile(testsAbs, testsSkeleton(gameName), 'utf8');
     }
@@ -234,7 +234,7 @@ export async function verifyScaffold(gameRoot: string): Promise<string[]> {
   const expected: string[] = [...GAME_TREE, GAME_FILES.main, GAME_FILES.tests];
 
   for (const rel of expected) {
-    const abs = path.join(gameRoot, rel);
+    const abs = path.join(/* turbopackIgnore: true */ gameRoot, rel);
     if (!(await pathExists(abs))) {
       missing.push(rel);
     }

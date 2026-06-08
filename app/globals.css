@@ -24,6 +24,194 @@ body {
   height: 100%;
 }
 
+#selftest-result {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.forge-runtime-page {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 32px;
+}
+
+.forge-runtime-page-demo {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  padding: 28px 32px 32px;
+  align-items: start;
+}
+
+.forge-runtime-sidebar,
+.forge-runtime-stage {
+  min-width: 0;
+}
+
+.forge-runtime-stage {
+  min-height: 0;
+}
+
+.forge-runtime-frame {
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  overflow: hidden;
+  background: #0d0f14;
+}
+
+.forge-runtime-summary-row {
+  gap: 12px;
+}
+
+.forge-runtime-summary-row > * {
+  min-width: 0;
+}
+
+.forge-runtime-summary-value {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-golden-slice {
+  background:
+    linear-gradient(135deg, rgba(194, 137, 90, 0.18), rgba(126, 139, 109, 0.1)),
+    var(--forge-bone-2);
+}
+
+.forge-demo-brief {
+  background:
+    linear-gradient(135deg, rgba(126, 139, 109, 0.13), rgba(194, 137, 90, 0.12)),
+    var(--forge-bone-2);
+}
+
+.forge-stage-heading {
+  min-height: 20px;
+}
+
+.forge-review-queue {
+  border-top: 1px solid rgba(38, 36, 31, 0.1);
+  padding-top: 6px;
+}
+
+.forge-review-queue a {
+  flex: 0 0 auto;
+}
+
+.forge-publish-result {
+  border-top: 1px solid rgba(38, 36, 31, 0.1);
+  padding-top: 6px;
+}
+
+.forge-publish-path {
+  overflow-wrap: anywhere;
+}
+
+.forge-sample-pills {
+  align-items: flex-start;
+}
+
+.forge-progress-trace {
+  border-top: 1px solid rgba(38, 36, 31, 0.1);
+  border-bottom: 1px solid rgba(38, 36, 31, 0.1);
+  padding: 10px 0;
+}
+
+.forge-progress-row {
+  min-height: 28px;
+}
+
+.forge-progress-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--forge-accent);
+}
+
+.forge-progress-dot-running {
+  box-shadow: 0 0 0 4px var(--forge-accent-soft);
+}
+
+.forge-progress-dot-done {
+  background: #557c5d;
+}
+
+.forge-progress-dot-failed {
+  background: #a94e4e;
+}
+
+.forge-progress-name {
+  text-transform: capitalize;
+}
+
+.forge-progress-images {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.forge-progress-thumb {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(38, 36, 31, 0.12);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #151820;
+}
+
+.forge-progress-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 900px) {
+  .forge-runtime-page {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px;
+    overflow-x: hidden;
+  }
+
+  .forge-runtime-frame {
+    min-height: 0;
+  }
+
+  .forge-runtime-page-demo {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  .forge-runtime-page {
+    padding: 12px;
+    gap: 14px;
+  }
+
+  .forge-runtime-frame {
+    border-radius: 8px;
+  }
+
+  .forge-runtime-summary-row {
+    align-items: flex-start;
+  }
+}
+
 /* entrance + small motion helpers */
 @keyframes forge-rise {
   from { opacity: 0; transform: translateY(12px); }
