@@ -3,7 +3,7 @@
  *
  * Used by the engine + generated games as the multiplayer / login messaging channel:
  * magic-link login codes, multiplayer invites, and generation-complete notifications
- * (see CLAUDE.md / research/architecture.md). SERVER-ONLY — credentials must never reach
+ * (see research/architecture.md). SERVER-ONLY — credentials must never reach
  * the client; call from Vercel functions only.
  *
  * Verified against research/sendblue.md:

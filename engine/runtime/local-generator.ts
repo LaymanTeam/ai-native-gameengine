@@ -404,7 +404,7 @@ function buildAgentDashboard(prompt: string, title: string, seed: number): NonNu
     { id: 'planner', name: 'Planner', role: 'Scope and sequence', status: 'working' as const, load: 62 + (seed % 18), focus: 'turn prompt into template-safe milestones' },
     { id: 'builder', name: 'Builder', role: 'Runtime implementation', status: 'working' as const, load: 58 + ((seed >>> 3) % 24), focus: 'wire definition data into playable Forge systems' },
     { id: 'tester', name: 'Tester', role: 'Browser and visual QA', status: 'idle' as const, load: 42 + ((seed >>> 5) % 20), focus: 'run self-test, screenshot, and visual matrix gates' },
-    { id: 'deployer', name: 'Deployer', role: 'Release handoff', status: 'blocked' as const, load: 35 + ((seed >>> 7) % 18), focus: 'wait for approval and token-backed deploy validation' },
+    { id: 'deployer', name: 'Deployer', role: 'Release transfer', status: 'blocked' as const, load: 35 + ((seed >>> 7) % 18), focus: 'wait for approval and token-backed deploy validation' },
   ];
   const approvals = [
     { id: 'approve-art', title: 'Accept reviewed-art quality gate', requesterId: 'tester', status: 'pending' as const, risk: 'medium' as const },

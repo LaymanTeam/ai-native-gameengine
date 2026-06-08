@@ -7,7 +7,7 @@
  *   from the GDD; truth-table verdict is deterministic) + headless playtest (subprocess driving
  *   the game's tests/headless-session.ts bridge through the deterministic harness).
  *
- * CLAUDE.md contract: logic-evaluator proves the RULES are coherent; the playtester proves the
+ * Pipeline contract: logic-evaluator proves the RULES are coherent; the playtester proves the
  * BUILD obeys them — both required before deploy.
  */
 import { promises as fs } from 'node:fs';

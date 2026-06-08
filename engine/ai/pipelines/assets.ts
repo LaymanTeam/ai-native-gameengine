@@ -8,7 +8,7 @@
  *
  * The reviewer regenerates THROUGH this pipeline's regenerator so the file on disk always
  * matches the last accepted image. Style bible is REQUIRED — the chain refuses without one
- * (CLAUDE.md contract: prepended to EVERY image prompt).
+ * (pipeline contract: prepended to EVERY image prompt).
  */
 import { promises as fs } from 'node:fs';
 import path from 'node:path';

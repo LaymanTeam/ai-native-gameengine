@@ -3538,7 +3538,7 @@ class ForgeScene extends Phaser.Scene {
         { id: 'task-qa', title: 'Verify browser smoke', ownerId: 'tester', status: 'todo', priority: 'high', eta: 'next' },
       ],
       approvals: [
-        { id: 'approve-ship', title: 'Approve deployment handoff', requesterId: 'tester', status: 'pending', risk: 'medium' },
+        { id: 'approve-ship', title: 'Approve deployment readiness', requesterId: 'tester', status: 'pending', risk: 'medium' },
       ],
       logs: [
         { id: 'log-1', agentId: 'planner', message: 'Contract loaded.', tone: 'success' },

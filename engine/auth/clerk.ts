@@ -2,8 +2,8 @@
  * Clerk methods for authentication and user management that can be reused across games
  *
  * Reusable Clerk (v6+, @clerk/nextjs) auth helpers. These are TOOLING shared by the
- * *generated* games — there is intentionally NO Clerk gate on the engine's own chat UI
- * (see CLAUDE.md). Middleware itself lives in proxy.ts (clerkMiddleware()); this module
+ * *generated* games — there is intentionally NO Clerk gate on the engine's own chat UI.
+ * Middleware itself lives in proxy.ts (clerkMiddleware()); this module
  * only wraps the server-side `auth()` / `currentUser()` surface plus a plain-Node Bearer
  * token extractor for generated games' API routes that run outside Next middleware.
  *
