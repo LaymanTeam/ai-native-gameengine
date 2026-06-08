@@ -62,10 +62,21 @@ Latest local verification:
   `/tmp/forge-clean-public-demo-buildfix.png`
 
 Current git/deploy status:
-- The staged commit is intended to preserve the full demo state before deployment.
+- Demo state commit: `c558a01` (`Prepare playable bakery demo`) on `feat/path-a-runtime-sdk`.
+- Commit was pushed to `https://github.com/LaymanTeam/ai-native-gameengine.git`.
 - `.playwright-mcp/` is ignored so local browser console logs stay out of git.
 - Strict token-pattern scan found only placeholder env names and `missing` notes, not real token-looking secrets.
-- Next step after commit/push: deploy production with `FORGE_MODEL_API_ENABLED=0`, then verify the hosted `/forge?play` route the same way.
+- Production deploy completed with `FORGE_MODEL_API_ENABLED=0`.
+- Production alias: `https://hackathon-multimodal.vercel.app`
+- Latest immutable deployment: `https://hackathon-multimodal-5zufyw6ql-tendra.vercel.app`
+- Hosted capability check returned `FORGE_MODEL_API_ENABLED disabled`.
+- Hosted definition route returned `source=local`, title `A Haunted Bakery Room`, boss `Overproofed King`, enemies `Crumb Skitter`, `Burnt Macaron`, `Rolling Pan`, and `10` assets.
+- Hosted public demo Playwright check against `https://hackathon-multimodal.vercel.app/forge?play` passed with `/api/forge/definition*` blocked:
+  `definitionApiCalls=0`, no visible Phaser copy, no builder controls, product framing visible, `scene=play`, `bossTelegraphVisible=false`, and source-backed player/enemy/boss/floor/background assets.
+- Hosted public screenshot:
+  `/tmp/forge-hosted-clean-public-demo.png`
+- Hosted browser self-test passed:
+  `SELFTEST_BASE_URL='https://hackathon-multimodal.vercel.app' SELFTEST_URL='https://hackathon-multimodal.vercel.app/forge?play&selftest=1&prompt=a%20haunted%20bakery%20room-clearing%20boss%20raid%20where%20a%20chef%20fights%20enchanted%20pastries%20and%20the%20Overproofed%20King%20with%20kitchen%20magic' SELFTEST_VIEWPORTS='first-game-tablet:900x900' npm run test:browser`
 
 ## Latest Continuation - Demo-Ready Checkpoint (Current)
 
