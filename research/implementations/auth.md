@@ -1,7 +1,7 @@
 # Implementation: `engine/auth/` — Clerk + Sendblue
 
-Auth/messaging tooling **reused by generated games** (not a gate on the engine's own chat UI;
-see CLAUDE.md). Built from `research/clerk.md` (v6+) and `research/sendblue.md`.
+Auth/messaging tooling **reused by generated games** (not a gate on the engine's own chat UI).
+Built from `research/clerk.md` (v6+) and `research/sendblue.md`.
 
 ---
 

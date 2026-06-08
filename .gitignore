@@ -4,9 +4,6 @@ dist/
 .env
 .env*.local
 
-# Claude Code agent worktrees — never commit
-.claude/worktrees/
-.claude/worktrees-trash/
 .next-trash-*/
 .fuse_hidden*
 tsconfig.tsbuildinfo
