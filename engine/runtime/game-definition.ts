@@ -153,8 +153,12 @@ export const bossSchema = enemySchema.extend({
 export const waveSchema = z.object({
   atSeconds: z.number().min(0),
   enemyId: id,
+  enemyIds: z.array(id).min(1).max(8).optional()
+    .describe('optional enemy-id cycle for mixed waves; defaults to [enemyId]'),
   count: z.number().int().min(1),
   everyMs: z.number().int().positive(),
+  spawnAfterWavesCleared: z.number().int().min(0).max(12).optional()
+    .describe('optional sequential gate; when set, this wave is queued after this many authored waves are fully cleared'),
 });
 
 export const upgradeSchema = z.object({

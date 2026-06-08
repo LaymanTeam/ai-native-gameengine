@@ -591,13 +591,15 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
       ? [25, 40, 55][i] ?? 30
       : scaledStat(10 + i * 5, ROLE_STATS[enemyRoles[i] ?? 'chaser'].score, PROFILE_ENEMY_STATS[feelProfile].score),
   }));
+  const pantryWaveEnemyIds = [
+    enemies[0]?.id ?? 'enemy-crumb-skitter',
+    enemies[1]?.id ?? 'enemy-rolling-pin',
+    enemies[2]?.id ?? 'enemy-dough-proofling',
+  ];
   const waves = isPantryPanic
     ? [
-        { atSeconds: 1, enemyId: enemies[0]?.id ?? 'enemy-crumb-skitter', count: 3, everyMs: 1120 },
-        { atSeconds: 8, enemyId: enemies[1]?.id ?? 'enemy-rolling-pin', count: 2, everyMs: 1260 },
-        { atSeconds: 16, enemyId: enemies[0]?.id ?? 'enemy-crumb-skitter', count: 5, everyMs: 940 },
-        { atSeconds: 26, enemyId: enemies[2]?.id ?? 'enemy-dough-proofling', count: 2, everyMs: 1180 },
-        { atSeconds: 38, enemyId: enemies[1]?.id ?? 'enemy-rolling-pin', count: 3, everyMs: 980 },
+        { atSeconds: 0.4, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 5, everyMs: 360 },
+        { atSeconds: 0.8, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 6, everyMs: 340, spawnAfterWavesCleared: 1 },
       ]
     : wantsBakeryPortalBackdrop
     ? [

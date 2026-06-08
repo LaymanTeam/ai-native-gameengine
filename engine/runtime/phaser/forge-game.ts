@@ -50,6 +50,8 @@ interface ForgeTestState {
   enemyRoleSignature: Enemy['role'][];
   waveRoleSignature: Enemy['role'][];
   waveCount: number;
+  gatedWaveCount: number;
+  activatedWaveCount: number;
   wavesCleared: number;
   bossSpawnAfterWavesCleared: number | null;
   worldWidth: number;
@@ -556,6 +558,8 @@ const SAFE_STATE: ForgeTestState = {
   enemyRoleSignature: [],
   waveRoleSignature: [],
   waveCount: 0,
+  gatedWaveCount: 0,
+  activatedWaveCount: 0,
   wavesCleared: 0,
   bossSpawnAfterWavesCleared: null,
   worldWidth: 0,
@@ -917,6 +921,7 @@ class ForgeScene extends Phaser.Scene {
   private spawnQueue: { at: number; enemy: Enemy; eliteKind: EliteKind; waveIndex: number }[] = [];
   private pendingSpawns = 0;
   private pendingWaveSpawns = new Map<number, number>();
+  private activatedWaves = new Set<number>();
   private clearedWaves = new Set<number>();
   private suppressSpawnsUntil = -Infinity;
   private bossSpawned = false;
@@ -1443,6 +1448,7 @@ class ForgeScene extends Phaser.Scene {
     this.lastDamageAt = -Infinity;
     this.pendingSpawns = 0;
     this.pendingWaveSpawns.clear();
+    this.activatedWaves.clear();
     this.clearedWaves.clear();
     this.suppressSpawnsUntil = -Infinity;
     this.over = false;
@@ -1740,10 +1746,14 @@ class ForgeScene extends Phaser.Scene {
       pressureRamp: this.currentPressureRamp(),
       upgradeChoiceKinds: this.upgradeChoices.map((upgrade) => upgrade.kind),
       enemyRoleSignature: this.def.enemies.map((enemy) => enemy.role),
-      waveRoleSignature: this.def.waves.map((wave) => (
-        this.def.enemies.find((enemy) => enemy.id === wave.enemyId)?.role ?? this.def.enemies[0]?.role ?? 'chaser'
+      waveRoleSignature: this.def.waves.flatMap((wave) => (
+        (wave.enemyIds?.length ? wave.enemyIds : [wave.enemyId]).map((enemyId) => (
+          this.def.enemies.find((enemy) => enemy.id === enemyId)?.role ?? this.def.enemies[0]?.role ?? 'chaser'
+        ))
       )),
       waveCount: this.def.waves.length,
+      gatedWaveCount: this.def.waves.filter((wave) => (wave.spawnAfterWavesCleared ?? 0) > 0).length,
+      activatedWaveCount: this.activatedWaves.size,
       wavesCleared: this.refreshClearedWaves(),
       bossSpawnAfterWavesCleared: this.bossWaveGateTarget(),
       worldWidth: this.worldWidth(),
@@ -4210,21 +4220,49 @@ class ForgeScene extends Phaser.Scene {
 
   private rebuildSpawnQueue() {
     this.spawnQueue = [];
+    this.activatedWaves.clear();
     if (this.isPuzzleRoom() || this.isAgentDashboard() || this.isDecisionRoom()) return;
-    const pressure = this.pressureProfile();
     for (const [waveIndex, wave] of this.def.waves.entries()) {
-      const enemy = this.def.enemies.find((e) => e.id === wave.enemyId) ?? this.def.enemies[0]!;
-      const ramp = this.pressureRampForWave(waveIndex);
-      const count = Math.max(1, Math.round(wave.count * pressure.countScale * ramp));
-      const intervalMs = Math.max(240, wave.everyMs * pressure.intervalScale / Math.sqrt(ramp));
-      for (let i = 0; i < count; i++) {
-        this.spawnQueue.push({
-          at: wave.atSeconds * pressure.timeScale + (i * intervalMs) / 1000,
-          enemy,
-          eliteKind: this.eliteKindForWave(waveIndex, i, enemy),
-          waveIndex,
-        });
-      }
+      if ((wave.spawnAfterWavesCleared ?? 0) > 0) continue;
+      this.queueWave(waveIndex, wave.atSeconds * this.pressureProfile().timeScale);
+    }
+    this.spawnQueue.sort((a, b) => a.at - b.at);
+  }
+
+  private queueWave(waveIndex: number, startAt: number) {
+    const wave = this.def.waves[waveIndex];
+    if (!wave) return;
+    const enemyIds = wave.enemyIds?.length ? wave.enemyIds : [wave.enemyId];
+    const waveEnemies = enemyIds
+      .map((enemyId) => this.def.enemies.find((enemy) => enemy.id === enemyId))
+      .filter((enemy): enemy is Enemy => Boolean(enemy));
+    const fallbackEnemy = this.def.enemies.find((e) => e.id === wave.enemyId) ?? this.def.enemies[0];
+    const enemyCycle = waveEnemies.length ? waveEnemies : fallbackEnemy ? [fallbackEnemy] : [];
+    if (!enemyCycle.length) return;
+    const pressure = this.pressureProfile();
+    const ramp = this.pressureRampForWave(waveIndex);
+    const count = Math.max(1, Math.round(wave.count * pressure.countScale * ramp));
+    const intervalMs = Math.max(240, wave.everyMs * pressure.intervalScale / Math.sqrt(ramp));
+    this.activatedWaves.add(waveIndex);
+    for (let i = 0; i < count; i++) {
+      const enemy = enemyCycle[i % enemyCycle.length]!;
+      this.spawnQueue.push({
+        at: startAt + (i * intervalMs) / 1000,
+        enemy,
+        eliteKind: this.eliteKindForWave(waveIndex, i, enemy),
+        waveIndex,
+      });
+    }
+  }
+
+  private queueReadyGatedWaves() {
+    const cleared = this.refreshClearedWaves();
+    for (const [waveIndex, wave] of this.def.waves.entries()) {
+      const gate = wave.spawnAfterWavesCleared;
+      if (gate === undefined || gate <= 0) continue;
+      if (this.activatedWaves.has(waveIndex)) continue;
+      if (cleared < gate) continue;
+      this.queueWave(waveIndex, this.elapsed + wave.atSeconds * this.pressureProfile().timeScale);
     }
     this.spawnQueue.sort((a, b) => a.at - b.at);
   }
@@ -4589,6 +4627,7 @@ class ForgeScene extends Phaser.Scene {
   }
 
   private releaseDueWaves() {
+    this.queueReadyGatedWaves();
     while (this.spawnQueue.length && this.spawnQueue[0]!.at <= this.elapsed) {
       const spawn = this.spawnQueue.shift()!;
       this.telegraphSpawn(spawn.enemy, false, spawn.eliteKind, spawn.waveIndex);
@@ -7220,6 +7259,7 @@ class ForgeScene extends Phaser.Scene {
     const pressure = this.pressureProfile();
     for (const [waveIndex, wave] of this.def.waves.entries()) {
       if (this.clearedWaves.has(waveIndex)) continue;
+      if (!this.activatedWaves.has(waveIndex)) continue;
       if (this.elapsed < wave.atSeconds * pressure.timeScale) continue;
       if (this.spawnQueue.some((spawn) => spawn.waveIndex === waveIndex)) continue;
       if ((this.pendingWaveSpawns.get(waveIndex) ?? 0) > 0) continue;
@@ -11859,6 +11899,13 @@ function runSelfTestIfRequested() {
             afterStart.bossHealth === null,
           `gate ${afterStart.bossSpawnAfterWavesCleared}, cleared ${afterStart.wavesCleared}, boss ${afterStart.bossHealth}`,
         );
+        check(
+          'sequential pantry waves reach runtime',
+          afterStart.waveCount === 2 &&
+            afterStart.gatedWaveCount === 1 &&
+            afterStart.activatedWaveCount === 1,
+          `waves ${afterStart.waveCount}, gated ${afterStart.gatedWaveCount}, activated ${afterStart.activatedWaveCount}`,
+        );
       }
       if (afterStart.runtimeTemplate === 'flight-shooter') {
         check(
@@ -12090,7 +12137,15 @@ function runSelfTestIfRequested() {
         );
       }
       let profileCompositionOk = roles.length >= 3 && waveRoles.length === afterStart.waveCount && afterStart.waveCount >= 4;
-      if (afterStart.feelProfile === 'arcade-survivor' && afterStart.weaponAutoFire === false) {
+      if (isPantryBrawler) {
+        profileCompositionOk =
+          afterStart.waveCount === 2 &&
+          afterStart.gatedWaveCount === 1 &&
+          hasRoles('chaser', 'charger', 'brute') &&
+          waveRoles.includes('chaser') &&
+          waveRoles.includes('charger') &&
+          waveRoles.includes('brute');
+      } else if (afterStart.feelProfile === 'arcade-survivor' && afterStart.weaponAutoFire === false) {
         profileCompositionOk = profileCompositionOk && hasRoles('chaser', 'charger', 'brute') && waveRoles.includes('charger') && waveRoles.includes('brute');
       } else if (afterStart.feelProfile === 'arcade-survivor') {
         profileCompositionOk = profileCompositionOk && hasRoles('chaser', 'sapper', 'shooter') && waveRoles.includes('sapper');

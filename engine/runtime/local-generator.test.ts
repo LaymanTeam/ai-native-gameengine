@@ -58,6 +58,10 @@ assert.equal(firstGameSlice.feelProfile, 'arcade-survivor', 'first-game slice sh
 assert.equal(firstGameSlice.arena.worldWidth, 1600, 'first-game slice should use the original-template world width');
 assert.equal(firstGameSlice.arena.worldHeight, 1200, 'first-game slice should use the original-template world height');
 assert.equal(firstGameSlice.arena.cameraFollow, true, 'first-game slice should use camera-follow world framing');
+assert.equal(firstGameSlice.waves.length, 2, 'first-game slice should use the original two-wave pre-boss brawler loop');
+assert.deepEqual(firstGameSlice.waves[0]?.enemyIds, firstGameSlice.enemies.map((enemy) => enemy.id), 'first-game first wave should cycle every pantry enemy type');
+assert.deepEqual(firstGameSlice.waves[1]?.enemyIds, firstGameSlice.enemies.map((enemy) => enemy.id), 'first-game second wave should cycle every pantry enemy type');
+assert.equal(firstGameSlice.waves[1]?.spawnAfterWavesCleared, 1, 'first-game second wave should wait until the first pantry wave is cleared');
 assert.equal(firstGameSlice.player.weapons[0]?.autoFire, false, 'first-game slice should be melee-first instead of auto-fire');
 assert.equal(firstGameSlice.player.movementModel, 'accelerated', 'first-game slice should use original-template acceleration/drag movement');
 assert.equal(firstGameSlice.player.acceleration, 1600, 'first-game slice should use original-template acceleration');
