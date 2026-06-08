@@ -50,6 +50,8 @@ interface ForgeTestState {
   enemyRoleSignature: Enemy['role'][];
   waveRoleSignature: Enemy['role'][];
   waveCount: number;
+  wavesCleared: number;
+  bossSpawnAfterWavesCleared: number | null;
   playerHealth: number;
   score: number;
   scoreTarget: number | null;
@@ -551,6 +553,8 @@ const SAFE_STATE: ForgeTestState = {
   enemyRoleSignature: [],
   waveRoleSignature: [],
   waveCount: 0,
+  wavesCleared: 0,
+  bossSpawnAfterWavesCleared: null,
   playerHealth: 0,
   score: 0,
   scoreTarget: null,
@@ -904,8 +908,10 @@ class ForgeScene extends Phaser.Scene {
   private lastDashAt = -Infinity;
   private dashActiveUntil = -Infinity;
   private lastDamageAt = -Infinity;
-  private spawnQueue: { at: number; enemy: Enemy; eliteKind: EliteKind }[] = [];
+  private spawnQueue: { at: number; enemy: Enemy; eliteKind: EliteKind; waveIndex: number }[] = [];
   private pendingSpawns = 0;
+  private pendingWaveSpawns = new Map<number, number>();
+  private clearedWaves = new Set<number>();
   private suppressSpawnsUntil = -Infinity;
   private bossSpawned = false;
   private boss: ArcadeImage | undefined;
@@ -1406,6 +1412,8 @@ class ForgeScene extends Phaser.Scene {
     this.dashActiveUntil = -Infinity;
     this.lastDamageAt = -Infinity;
     this.pendingSpawns = 0;
+    this.pendingWaveSpawns.clear();
+    this.clearedWaves.clear();
     this.suppressSpawnsUntil = -Infinity;
     this.over = false;
     this.paused = false;
@@ -1697,6 +1705,8 @@ class ForgeScene extends Phaser.Scene {
         this.def.enemies.find((enemy) => enemy.id === wave.enemyId)?.role ?? this.def.enemies[0]?.role ?? 'chaser'
       )),
       waveCount: this.def.waves.length,
+      wavesCleared: this.refreshClearedWaves(),
+      bossSpawnAfterWavesCleared: this.bossWaveGateTarget(),
       playerHealth: this.hp,
       score: this.score,
       scoreTarget: this.def.winCondition === 'score-target' ? this.scoreTarget() : null,
@@ -2430,6 +2440,7 @@ class ForgeScene extends Phaser.Scene {
 
   killAllEnemiesForTest() {
     this.pendingSpawns = 0;
+    this.pendingWaveSpawns.clear();
     this.suppressSpawnsUntil = this.time.now + 1200;
     this.enemies.children.each((child) => {
       (child as ArcadeImage).destroy();
@@ -4164,6 +4175,7 @@ class ForgeScene extends Phaser.Scene {
           at: wave.atSeconds * pressure.timeScale + (i * intervalMs) / 1000,
           enemy,
           eliteKind: this.eliteKindForWave(waveIndex, i, enemy),
+          waveIndex,
         });
       }
     }
@@ -4532,7 +4544,7 @@ class ForgeScene extends Phaser.Scene {
   private releaseDueWaves() {
     while (this.spawnQueue.length && this.spawnQueue[0]!.at <= this.elapsed) {
       const spawn = this.spawnQueue.shift()!;
-      this.telegraphSpawn(spawn.enemy, false, spawn.eliteKind);
+      this.telegraphSpawn(spawn.enemy, false, spawn.eliteKind, spawn.waveIndex);
     }
   }
 
@@ -4558,17 +4570,19 @@ class ForgeScene extends Phaser.Scene {
     };
   }
 
-  private telegraphSpawn(e: Enemy | Boss, isBoss = false, eliteKind: EliteKind = 'none') {
+  private telegraphSpawn(e: Enemy | Boss, isBoss = false, eliteKind: EliteKind = 'none', waveIndex: number | null = null) {
     const point = this.chooseSpawnPoint(isBoss);
     const delay = Math.round((isBoss ? 680 : 460) * this.pressureProfile().telegraphScale);
     const elite = !isBoss && eliteKind !== 'none';
     const radius = Math.max(e.radius * (isBoss ? 1.55 : elite ? 1.7 : 1.4), isBoss ? 72 : elite ? 46 : 32);
     this.pendingSpawns++;
+    if (waveIndex !== null) this.pendingWaveSpawns.set(waveIndex, (this.pendingWaveSpawns.get(waveIndex) ?? 0) + 1);
     this.spawnWarning(point.x, point.y, radius, isBoss ? this.def.palette.danger : elite ? this.eliteColor(eliteKind) : this.def.palette.accent, delay, eliteKind);
     this.time.delayedCall(delay, () => {
       this.pendingSpawns = Math.max(0, this.pendingSpawns - 1);
+      if (waveIndex !== null) this.pendingWaveSpawns.set(waveIndex, Math.max(0, (this.pendingWaveSpawns.get(waveIndex) ?? 0) - 1));
       if (this.over || this.time.now < this.suppressSpawnsUntil) return;
-      this.spawnEnemy(e, isBoss, point, eliteKind);
+      this.spawnEnemy(e, isBoss, point, eliteKind, waveIndex);
     });
   }
 
@@ -4607,7 +4621,7 @@ class ForgeScene extends Phaser.Scene {
     });
   }
 
-  private spawnEnemy(e: Enemy | Boss, isBoss = false, point = this.chooseSpawnPoint(isBoss), eliteKind: EliteKind = 'none') {
+  private spawnEnemy(e: Enemy | Boss, isBoss = false, point = this.chooseSpawnPoint(isBoss), eliteKind: EliteKind = 'none', waveIndex: number | null = null) {
     const { x, y } = point;
     const elite = !isBoss ? this.eliteStats(eliteKind) : this.eliteStats('none');
     const hp = Math.round(e.health * elite.hp);
@@ -4628,6 +4642,7 @@ class ForgeScene extends Phaser.Scene {
     img.setData('radius', e.radius);
     img.setData('fire', Phaser.Math.FloatBetween(0, 0.8));
     img.setData('boss', isBoss);
+    img.setData('waveIndex', isBoss ? null : waveIndex);
     img.setData('eliteKind', isBoss ? 'none' : eliteKind);
     const visualScale = isBoss ? Math.max(1.7, elite.scale * 1.42) : Math.max(1.24, elite.scale * 1.2);
     img.setData('baseScale', visualScale);
@@ -7133,11 +7148,50 @@ class ForgeScene extends Phaser.Scene {
     body.setVelocity(Math.cos(angle) * speed * 0.58, Math.sin(angle) * speed * 0.58);
   }
 
+  private bossWaveGateTarget() {
+    const target = this.def.boss?.spawnAfterWavesCleared;
+    if (!target) return null;
+    return Math.round(clamp(target, 1, Math.max(1, this.def.waves.length)));
+  }
+
+  private waveHasLiveEnemies(waveIndex: number) {
+    let found = false;
+    this.enemies.children.each((child) => {
+      const enemy = child as ArcadeImage;
+      if (!enemy.active || enemy.getData('boss')) return true;
+      if ((enemy.getData('waveIndex') as number | null) === waveIndex) {
+        found = true;
+        return false;
+      }
+      return true;
+    });
+    return found;
+  }
+
+  private refreshClearedWaves() {
+    const pressure = this.pressureProfile();
+    for (const [waveIndex, wave] of this.def.waves.entries()) {
+      if (this.clearedWaves.has(waveIndex)) continue;
+      if (this.elapsed < wave.atSeconds * pressure.timeScale) continue;
+      if (this.spawnQueue.some((spawn) => spawn.waveIndex === waveIndex)) continue;
+      if ((this.pendingWaveSpawns.get(waveIndex) ?? 0) > 0) continue;
+      if (this.waveHasLiveEnemies(waveIndex)) continue;
+      this.clearedWaves.add(waveIndex);
+    }
+    return this.clearedWaves.size;
+  }
+
   private maybeSpawnBoss() {
     if (!this.def.boss || this.bossSpawned) return;
-    const timeReady = this.elapsed >= this.def.boss.spawnAtSeconds * this.pressureProfile().timeScale;
-    const waveReady = this.spawnQueue.length === 0 && this.pendingSpawns === 0 && this.enemies.children.size <= 3;
-    if (!timeReady && !waveReady) return;
+    const waveGateTarget = this.bossWaveGateTarget();
+    if (waveGateTarget !== null) {
+      if (this.refreshClearedWaves() < waveGateTarget) return;
+      this.spawnQueue = [];
+    } else {
+      const timeReady = this.elapsed >= this.def.boss.spawnAtSeconds * this.pressureProfile().timeScale;
+      const waveReady = this.spawnQueue.length === 0 && this.pendingSpawns === 0 && this.enemies.children.size <= 3;
+      if (!timeReady && !waveReady) return;
+    }
     this.bossSpawned = true;
     this.telegraphSpawn(this.def.boss, true);
     this.flash(`${this.def.boss.name} appears`);
@@ -11742,6 +11796,15 @@ function runSelfTestIfRequested() {
           : afterStart.playerMovementModel === 'direct' || afterStart.playerMovementModel === 'accelerated',
         `movement ${afterStart.playerMovementModel}${isPantryBrawler ? ', expected accelerated pantry brawler' : ''}`,
       );
+      if (isPantryBrawler) {
+        check(
+          'boss wave-clear gate reaches runtime',
+          afterStart.bossSpawnAfterWavesCleared === 2 &&
+            afterStart.wavesCleared < afterStart.bossSpawnAfterWavesCleared &&
+            afterStart.bossHealth === null,
+          `gate ${afterStart.bossSpawnAfterWavesCleared}, cleared ${afterStart.wavesCleared}, boss ${afterStart.bossHealth}`,
+        );
+      }
       if (afterStart.runtimeTemplate === 'flight-shooter') {
         check(
           'flight shooter lane presentation is authored',

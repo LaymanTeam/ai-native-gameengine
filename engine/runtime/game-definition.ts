@@ -145,6 +145,8 @@ export const bossPattern = z.enum(['spiral-shot', 'radial-burst', 'charge', 'sum
 
 export const bossSchema = enemySchema.extend({
   spawnAtSeconds: z.number().min(0),
+  spawnAfterWavesCleared: z.number().int().min(1).max(12).optional()
+    .describe('optional wave-clear gate; when set, the boss waits until this many authored waves are fully cleared'),
   patterns: z.array(bossPattern).min(1),
 });
 

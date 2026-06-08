@@ -621,6 +621,7 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
     xp: 50,
     score: 500,
     spawnAtSeconds: isPantryPanic ? 24 : wantsBakeryPortalBackdrop ? 32 : 75,
+    ...(isPantryPanic ? { spawnAfterWavesCleared: 2 } : {}),
     patterns: isPantryPanic ? (['charge', 'summon', 'radial-burst'] as BossPattern[]) : wantsBakeryPortalBackdrop ? (['summon', 'radial-burst', 'beam'] as BossPattern[]) : selectBossPatterns(words, seed),
   } : undefined;
   const scoreTarget = winCondition === 'score-target' ? 210 + (seed % 110) : undefined;

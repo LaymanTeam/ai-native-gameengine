@@ -52,6 +52,7 @@ assert.equal(firstGameSlice.runtimeTemplate, FIRST_GAME_VERTICAL_SLICE.expectedR
 assert.equal(firstGameSlice.winCondition, FIRST_GAME_VERTICAL_SLICE.expectedWinCondition, 'first-game slice should stay boss-backed');
 assert.equal(firstGameSlice.boss?.name, FIRST_GAME_VERTICAL_SLICE.expectedBoss, 'first-game slice should route to the bakery boss');
 assert.equal(firstGameSlice.boss?.patterns[0], FIRST_GAME_VERTICAL_SLICE.expectedLeadPattern, 'first-game slice should lead with the pantry boss charge pattern');
+assert.equal(firstGameSlice.boss?.spawnAfterWavesCleared, 2, 'first-game slice should gate the boss behind cleared pantry waves');
 assert.equal(firstGameSlice.title, 'Baker Pantry Panic', 'first-game slice should use the authored pantry title');
 assert.equal(firstGameSlice.feelProfile, 'arcade-survivor', 'first-game slice should use the melee-friendly arcade profile');
 assert.equal(firstGameSlice.player.weapons[0]?.autoFire, false, 'first-game slice should be melee-first instead of auto-fire');
