@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "for t in $(find engine -name '*.test.ts'); do npx tsx \"$t\" || exit 1; done; echo ALL SUITES GREEN",
     "test:browser": "node scripts/forge-selftest.mjs",
+    "test:public-demo": "node scripts/forge-public-demo-smoke.mjs",
     "test:standalone": "tsx scripts/forge-standalone-build.ts",
     "test:deploy-route": "node scripts/forge-deploy-route-smoke.mjs",
     "test:reviewed-art-route": "node scripts/forge-reviewed-art-route-smoke.mjs",
