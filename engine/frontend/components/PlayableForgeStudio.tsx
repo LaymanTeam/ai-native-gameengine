@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Studio front door — describe a game, get a playable build that runs IN THIS APP.
+ * Core runtime sandbox — describe a game, get a small local playable build in this app.
  *
  * Generates a GameSpec locally (no API key, no network — integration/local-generator) and mounts
  * it with the in-app runtime (integration/runtime → Canvas2D today, PixiJS when the engine ships
@@ -103,8 +103,8 @@ export function PlayableForgeStudio() {
         <Group gap="sm" wrap="nowrap">
           <ForgeAvatar />
           <Box>
-            <Text fw={500}>Studio</Text>
-            <Text size="sm" c="dimmed">Describe a game — I’ll build a playable one, right here.</Text>
+            <Text fw={500}>Core runtime sandbox</Text>
+            <Text size="sm" c="dimmed">Instant local GameSpec → playable loop.</Text>
           </Box>
         </Group>
 
@@ -161,8 +161,8 @@ export function PlayableForgeStudio() {
       <Stack gap="md" mih={0}>
         <Group justify="space-between" align="flex-start">
           <Box>
-            <Text size="xs" tt="uppercase" fw={600} c="sage" lts="0.1em">Live build · in-app</Text>
-            <Text fw={500} size="lg">{build?.spec.title ?? 'Generate a game to play it here'}</Text>
+            <Text size="xs" tt="uppercase" fw={600} c="sage" lts="0.1em">Core engine · local</Text>
+            <Text fw={500} size="lg">{build?.spec.title ?? 'Instant runtime sandbox'}</Text>
           </Box>
           {build && (
             <Button component="a" href={`/play/${build.slug}`} target="_blank" rel="noreferrer" size="xs" variant="default" radius="md">
@@ -183,8 +183,8 @@ export function PlayableForgeStudio() {
             <Stack h="100%" align="center" justify="center" gap="xs" p="xl">
               <Text fw={500}>No build loaded yet</Text>
               <Text c="dimmed" maw={440} ta="center" size="sm">
-                Describe a game and press <b>Create build</b>. It generates a GameSpec and runs a
-                playable game right here — WASD/arrows to move, auto-fire, survive 90s.
+                Describe a game and press <b>Create build</b>. This proves the core loop from
+                local GameSpec to playable runtime — WASD/arrows to move, auto-fire, survive 90s.
               </Text>
             </Stack>
           )}

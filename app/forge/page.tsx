@@ -579,10 +579,10 @@ export default function ForgePage() {
         {publicDemoMode ? (
           <>
             <Paper withBorder radius="md" p="md" className="forge-demo-brief">
-              <Text size="xs" tt="uppercase" fw={700} c="sage" lts="0.08em">AI-native game engine</Text>
+              <Text size="xs" tt="uppercase" fw={700} c="sage" lts="0.08em">Prototype vertical slice</Text>
               <Text fw={650} fz="lg" mt={4}>Bakery portal raid</Text>
               <Text size="sm" c="dimmed" mt={4}>
-                One generated game output, frozen for a public demo.
+                One generated game output, frozen for a public AI-native engine demo.
               </Text>
             </Paper>
 
@@ -593,6 +593,14 @@ export default function ForgePage() {
               </Group>
               <Text size="xs" c="dimmed" mt={4}>
                 Live generation is off here. Clone the repo and add a Gemini key to run the builder.
+              </Text>
+            </Paper>
+
+            <Paper withBorder radius="md" p="sm" bg="var(--forge-bone-2)">
+              <Text size="xs" fw={700} tt="uppercase" c="sage" lts="0.08em">What it is</Text>
+              <Text size="xs" c="dimmed" mt={4}>
+                The AI shapes a GameDefinition. The reusable runtime provides the mechanics, QA hooks, and export path.
+                The vision is a multimodal conductor coordinating specialist agents to compress the polish loop.
               </Text>
             </Paper>
 
@@ -610,8 +618,8 @@ export default function ForgePage() {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2l2.2 6.6H21l-5.4 4 2 6.6L12 15l-5.6 4.2 2-6.6L3 8.6h6.8z" /></svg>
               </ThemeIcon>
               <Box>
-                <Text fw={500}>Forge runtime</Text>
-                <Text size="sm" c="dimmed">Describe a game — Forge builds it from a GameDefinition.</Text>
+                <Text fw={500}>Forge builder</Text>
+                <Text size="sm" c="dimmed">Generate a GameDefinition for the richer runtime.</Text>
               </Box>
             </Group>
 
@@ -635,9 +643,9 @@ export default function ForgePage() {
             </Paper>
 
             <Paper withBorder radius="md" p="sm" bg="var(--forge-bone-2)">
-              <Text size="xs" fw={700} tt="uppercase" c="sage" lts="0.08em">Frozen demo output</Text>
+              <Text size="xs" fw={700} tt="uppercase" c="sage" lts="0.08em">Prototype output</Text>
               <Text size="xs" c="dimmed" mt={4}>
-                This public build shows one AI-created game output with API spending disabled.
+                The public build freezes one generated vertical slice with API spending disabled.
                 Clone the <Anchor size="xs" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">GitHub repo</Anchor> and add your own Gemini key to try live generation.
               </Text>
             </Paper>

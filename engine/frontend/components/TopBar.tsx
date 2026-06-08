@@ -13,12 +13,12 @@ const LINKS = [
   { href: '/', label: 'Studio' },
   { href: '/library', label: 'Library' },
   { href: '/schema', label: 'Schema' },
-  { href: '/demo', label: 'Demo' },
-  { href: '/forge', label: 'Forge' },
+  { href: '/demo', label: 'Core' },
+  { href: '/forge', label: 'Forge builder' },
 ] as const;
 
 const GAME_SURFACE_LINKS = [
-  { href: '/forge?play', label: 'Bakery demo' },
+  { href: '/forge?play', label: 'Bakery prototype' },
 ] as const;
 
 function SparkMark() {
