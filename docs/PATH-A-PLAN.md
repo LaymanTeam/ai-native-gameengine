@@ -1,5 +1,7 @@
 # Path A — Agentic codegen to sophisticated games
 
+Expanded operating plan: `docs/ALL-IN-ORIGINAL-PLAN.md`.
+
 **Goal:** a user prompt → the engine **generates** a polished, sprite-based game (icons, rules,
 systems, boss, waves, win/lose) that **actually runs** — at the sophistication level of a
 hand-crafted vertical slice, but produced by the AI pipeline.
