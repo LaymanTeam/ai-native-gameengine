@@ -55,6 +55,9 @@ assert.equal(firstGameSlice.boss?.patterns[0], FIRST_GAME_VERTICAL_SLICE.expecte
 assert.equal(firstGameSlice.boss?.spawnAfterWavesCleared, 2, 'first-game slice should gate the boss behind cleared pantry waves');
 assert.equal(firstGameSlice.title, 'Baker Pantry Panic', 'first-game slice should use the authored pantry title');
 assert.equal(firstGameSlice.feelProfile, 'arcade-survivor', 'first-game slice should use the melee-friendly arcade profile');
+assert.equal(firstGameSlice.arena.worldWidth, 1600, 'first-game slice should use the original-template world width');
+assert.equal(firstGameSlice.arena.worldHeight, 1200, 'first-game slice should use the original-template world height');
+assert.equal(firstGameSlice.arena.cameraFollow, true, 'first-game slice should use camera-follow world framing');
 assert.equal(firstGameSlice.player.weapons[0]?.autoFire, false, 'first-game slice should be melee-first instead of auto-fire');
 assert.equal(firstGameSlice.player.movementModel, 'accelerated', 'first-game slice should use original-template acceleration/drag movement');
 assert.equal(firstGameSlice.player.acceleration, 1600, 'first-game slice should use original-template acceleration');
@@ -277,6 +280,7 @@ if (legacyParsed.ok) {
   assert.equal(legacyParsed.definition.playStyle.pressure, 'standard', 'legacy playStyle pressure should default');
   assert.equal(legacyParsed.definition.playStyle.weaponCadence, 'steady', 'legacy playStyle cadence should default');
   assert.equal(legacyParsed.definition.player.movementModel, 'direct', 'legacy player movement model should default');
+  assert.equal(legacyParsed.definition.arena.cameraFollow, false, 'legacy cameraFollow should default');
 }
 
 const withSourceAsset = {

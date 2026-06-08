@@ -52,6 +52,9 @@ interface ForgeTestState {
   waveCount: number;
   wavesCleared: number;
   bossSpawnAfterWavesCleared: number | null;
+  worldWidth: number;
+  worldHeight: number;
+  cameraFollow: boolean;
   playerHealth: number;
   score: number;
   scoreTarget: number | null;
@@ -555,6 +558,9 @@ const SAFE_STATE: ForgeTestState = {
   waveCount: 0,
   wavesCleared: 0,
   bossSpawnAfterWavesCleared: null,
+  worldWidth: 0,
+  worldHeight: 0,
+  cameraFollow: false,
   playerHealth: 0,
   score: 0,
   scoreTarget: null,
@@ -1039,6 +1045,28 @@ class ForgeScene extends Phaser.Scene {
     return this.def.runtimeTemplate ?? 'arena-action';
   }
 
+  private worldWidth() {
+    return Math.max(this.scale.width, this.def.arena.worldWidth ?? this.def.arena.width);
+  }
+
+  private worldHeight() {
+    return Math.max(this.scale.height, this.def.arena.worldHeight ?? this.def.arena.height);
+  }
+
+  private clampWorldX(x: number, margin = 0) {
+    return clamp(x, margin, this.worldWidth() - margin);
+  }
+
+  private clampWorldY(y: number, margin = 0) {
+    return clamp(y, margin, this.worldHeight() - margin);
+  }
+
+  private usesCameraFollow() {
+    if (!this.def.arena.cameraFollow) return false;
+    if (this.isFlightShooter() || this.isPlatformer() || this.isPuzzleRoom() || this.isAgentDashboard() || this.isDecisionRoom()) return false;
+    return this.worldWidth() > this.scale.width || this.worldHeight() > this.scale.height;
+  }
+
   private isFlightShooter() {
     return this.runtimeTemplate() === 'flight-shooter';
   }
@@ -1336,7 +1364,9 @@ class ForgeScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
-    this.physics.world.setBounds(0, 0, width, height);
+    const worldWidth = this.worldWidth();
+    const worldHeight = this.worldHeight();
+    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.physics.world.gravity.set(0, this.isPlatformer() ? 980 : 0);
 
     this.maxHp = this.def.player.maxHealth;
@@ -1527,11 +1557,11 @@ class ForgeScene extends Phaser.Scene {
     this.ensureGameplayTextures(true);
 
     this.cameras.main.setBackgroundColor(this.def.palette.background);
-    drawBackdrop(this, this.def, width, height, this.floorTextureKey, this.backdropTextureKey);
-    this.drawArenaDressing(width, height);
-    drawForegroundDressing(this, this.def, width, height);
-    this.ambientMotionFx = drawAmbientRoomMotion(this, this.def, width, height);
-    this.profilePresentationFx = drawFeelProfilePresentation(this, this.def, width, height);
+    drawBackdrop(this, this.def, worldWidth, worldHeight, this.floorTextureKey, this.backdropTextureKey);
+    this.drawArenaDressing(worldWidth, worldHeight);
+    drawForegroundDressing(this, this.def, worldWidth, worldHeight);
+    this.ambientMotionFx = drawAmbientRoomMotion(this, this.def, worldWidth, worldHeight);
+    this.profilePresentationFx = drawFeelProfilePresentation(this, this.def, worldWidth, worldHeight);
     this.setupProfileFraming(width, height);
     this.setupCameraDirector();
     this.setupFlightTemplateLayer(width, height);
@@ -1541,7 +1571,7 @@ class ForgeScene extends Phaser.Scene {
     this.setupRepairNodes();
     this.setupExtractZone();
 
-    const playerStart = this.playerStartPosition(width, height);
+    const playerStart = this.playerStartPosition(worldWidth, worldHeight);
     this.player = this.applyCircleBody(
       this.physics.add.image(playerStart.x, playerStart.y, this.def.player.spriteKey),
       this.def.player.radius,
@@ -1573,6 +1603,15 @@ class ForgeScene extends Phaser.Scene {
     this.playerRigLayer = this.add.graphics().setDepth(DEPTH.player + 0.24);
     this.actorAnimationFx += 1;
     this.actorRigFx += 1;
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    if (this.usesCameraFollow()) {
+      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+      this.cameras.main.setDeadzone(Math.round(width * 0.18), Math.round(height * 0.18));
+    } else {
+      this.cameras.main.stopFollow();
+      this.cameras.main.scrollX = 0;
+      this.cameras.main.scrollY = 0;
+    }
     this.setupPuzzleRoomTemplateLayer(width, height);
     this.setupAgentDashboardTemplateLayer(width, height);
     this.setupDecisionRoomTemplateLayer(width, height);
@@ -1707,6 +1746,9 @@ class ForgeScene extends Phaser.Scene {
       waveCount: this.def.waves.length,
       wavesCleared: this.refreshClearedWaves(),
       bossSpawnAfterWavesCleared: this.bossWaveGateTarget(),
+      worldWidth: this.worldWidth(),
+      worldHeight: this.worldHeight(),
+      cameraFollow: this.usesCameraFollow(),
       playerHealth: this.hp,
       score: this.score,
       scoreTarget: this.def.winCondition === 'score-target' ? this.scoreTarget() : null,
@@ -1893,8 +1935,8 @@ class ForgeScene extends Phaser.Scene {
     this.suppressSpawnsUntil = this.time.now + 4200;
     const point = enemy.role === 'sentinel'
       ? {
-          x: clamp(this.player.x + 320, 72, this.scale.width - 72),
-          y: clamp(this.player.y - 90, 72, this.scale.height - 72),
+          x: this.clampWorldX(this.player.x + 320, 72),
+          y: this.clampWorldY(this.player.y - 90, 72),
         }
       : this.chooseSpawnPoint(false);
     const spawned = this.spawnEnemy(enemy, false, point);
@@ -1912,7 +1954,7 @@ class ForgeScene extends Phaser.Scene {
     const enemy = this.def.enemies[clamp(typeIndex, 0, this.def.enemies.length - 1)] ?? this.def.enemies[0]!;
     this.suppressSpawnsUntil = this.time.now + 4200;
     const spawned = this.spawnEnemy(enemy, false, {
-      x: clamp(this.player.x + Math.max(4, this.def.player.radius * 0.35), 24, this.scale.width - 24),
+      x: this.clampWorldX(this.player.x + Math.max(4, this.def.player.radius * 0.35), 24),
       y: this.player.y,
     });
     spawned.setData('spawnUntil', this.time.now - 1);
@@ -2059,13 +2101,18 @@ class ForgeScene extends Phaser.Scene {
   spawnBossForTest() {
     if (!this.def.boss || this.boss?.active) return;
     this.bossSpawned = true;
+    const worldWidth = this.worldWidth();
+    const worldHeight = this.worldHeight();
     const point = this.isFlightShooter()
       ? { x: this.scale.width - 150, y: this.scale.height / 2 }
       : this.isPlatformer()
         ? { x: this.scale.width - 220, y: this.scale.height - 150 }
         : arenaMood(this.def) === 'bakery'
-          ? { x: this.scale.width * 0.64, y: this.scale.height * 0.22 }
-        : { x: this.scale.width * 0.64, y: this.scale.height * 0.34 };
+          ? {
+              x: this.clampWorldX(this.player.x + 180, 92),
+              y: this.clampWorldY(this.player.y - 220, 92),
+            }
+        : { x: worldWidth * 0.64, y: worldHeight * 0.34 };
     this.spawnEnemy(this.def.boss, true, point);
   }
 
@@ -2075,7 +2122,7 @@ class ForgeScene extends Phaser.Scene {
     this.bossSpawned = true;
     this.suppressSpawnsUntil = this.time.now + 4200;
     const spawned = this.spawnEnemy(this.def.boss, true, {
-      x: clamp(this.player.x + Math.max(10, this.def.player.radius * 0.7), 48, this.scale.width - 48),
+      x: this.clampWorldX(this.player.x + Math.max(10, this.def.player.radius * 0.7), 48),
       y: this.player.y,
     });
     spawned.setData('spawnUntil', this.time.now - 1);
@@ -4394,8 +4441,8 @@ class ForgeScene extends Phaser.Scene {
     const len = Math.hypot(intent.dx, intent.dy) || 1;
     const distance = this.moveSpeed * (durationMs / 1000);
     const radius = this.def.player.radius;
-    const x = clamp(this.player.x + (intent.dx / len) * distance, radius, this.scale.width - radius);
-    const y = clamp(this.player.y + (intent.dy / len) * distance, radius, this.scale.height - radius);
+    const x = this.clampWorldX(this.player.x + (intent.dx / len) * distance, radius);
+    const y = this.clampWorldY(this.player.y + (intent.dy / len) * distance, radius);
     this.player.setPosition(x, y);
     (this.player.body as Phaser.Physics.Arcade.Body | null)?.reset(x, y);
     this.updateFacing(intent.dx, intent.dy);
@@ -4549,17 +4596,18 @@ class ForgeScene extends Phaser.Scene {
   }
 
   private chooseSpawnPoint(isBoss: boolean): SpawnPoint {
-    const { width, height } = this.scale;
+    const width = this.worldWidth();
+    const height = this.worldHeight();
     if (this.isFlightShooter()) {
       return {
-        x: isBoss ? width - 142 : width + (isBoss ? 0 : Phaser.Math.Between(28, 92)),
-        y: isBoss ? height / 2 : Phaser.Math.Between(64, Math.max(64, height - 64)),
+        x: isBoss ? this.scale.width - 142 : this.scale.width + (isBoss ? 0 : Phaser.Math.Between(28, 92)),
+        y: isBoss ? this.scale.height / 2 : Phaser.Math.Between(64, Math.max(64, this.scale.height - 64)),
       };
     }
     if (this.isPlatformer()) {
       return {
-        x: isBoss ? width - 156 : width + Phaser.Math.Between(34, 96),
-        y: isBoss ? height - 154 : height - 112,
+        x: isBoss ? this.scale.width - 156 : this.scale.width + Phaser.Math.Between(34, 96),
+        y: isBoss ? this.scale.height - 154 : this.scale.height - 112,
       };
     }
     const edge = Phaser.Math.Between(0, 3);
@@ -11797,6 +11845,13 @@ function runSelfTestIfRequested() {
         `movement ${afterStart.playerMovementModel}${isPantryBrawler ? ', expected accelerated pantry brawler' : ''}`,
       );
       if (isPantryBrawler) {
+        check(
+          'scrollable world reaches runtime',
+          afterStart.worldWidth === 1600 &&
+            afterStart.worldHeight === 1200 &&
+            afterStart.cameraFollow === true,
+          `world ${afterStart.worldWidth}x${afterStart.worldHeight}, follow ${afterStart.cameraFollow}`,
+        );
         check(
           'boss wave-clear gate reaches runtime',
           afterStart.bossSpawnAfterWavesCleared === 2 &&

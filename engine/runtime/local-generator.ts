@@ -901,6 +901,8 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
             : `${titleCase(words.slice(0, 2).join(' ') || 'Rift')} Arena`,
       width: 1280,
       height: 720,
+      ...(isPantryPanic ? { worldWidth: 1600, worldHeight: 1200, cameraFollow: true } : {}),
+      cameraFollow: isPantryPanic,
       durationSeconds: winCondition === 'survive' ? 100 : 90,
       tileKey: floorKey,
     },

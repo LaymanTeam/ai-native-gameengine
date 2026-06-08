@@ -168,6 +168,9 @@ export const arenaSchema = z.object({
   name: z.string().min(1),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  worldWidth: z.number().int().positive().optional().describe('optional physics world width; defaults to viewport width'),
+  worldHeight: z.number().int().positive().optional().describe('optional physics world height; defaults to viewport height'),
+  cameraFollow: z.boolean().default(false).describe('whether the camera follows the player inside a larger world'),
   durationSeconds: z.number().int().positive().describe('survive this long to win, when winCondition=survive'),
   tileKey: id.optional().describe('asset key for the floor tile'),
 });
