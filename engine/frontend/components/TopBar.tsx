@@ -13,7 +13,7 @@ const LINKS = [
   { href: '/', label: 'Studio' },
   { href: '/library', label: 'Library' },
   { href: '/schema', label: 'Schema' },
-  { href: '/demo', label: 'Core' },
+  { href: '/forge?play', label: 'Demo' },
   { href: '/forge', label: 'Forge builder' },
 ] as const;
 

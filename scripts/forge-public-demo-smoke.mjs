@@ -79,6 +79,10 @@ function demoUrl(extraParams = {}) {
   return url.toString();
 }
 
+function publicDemoUrl() {
+  return new URL('/demo', baseUrl).toString();
+}
+
 async function waitForGameApi(page) {
   await page.waitForSelector('canvas', { timeout: timeoutMs });
   await page.waitForFunction(() => Boolean(window.__GAME_TEST__?.getState), null, { timeout: timeoutMs });
@@ -86,6 +90,18 @@ async function waitForGameApi(page) {
 
 async function getState(page) {
   return page.evaluate(() => window.__GAME_TEST__?.getState?.() ?? null);
+}
+
+function trackForbiddenCalls(page, calls) {
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/forge/definition') || url.pathname.startsWith('/api/forge/generate')) {
+      calls.push(url.pathname);
+    }
+    if (/generativelanguage\.googleapis\.com|openrouter\.ai/i.test(url.hostname)) {
+      calls.push(url.hostname);
+    }
+  });
 }
 
 async function main() {
@@ -109,23 +125,17 @@ async function main() {
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const forbiddenCalls = [];
-    page.on('request', (request) => {
-      const url = new URL(request.url());
-      if (url.pathname.startsWith('/api/forge/definition') || url.pathname.startsWith('/api/forge/generate')) {
-        forbiddenCalls.push(url.pathname);
-      }
-      if (/generativelanguage\.googleapis\.com|openrouter\.ai/i.test(url.hostname)) {
-        forbiddenCalls.push(url.hostname);
-      }
-    });
+    trackForbiddenCalls(page, forbiddenCalls);
 
-    log('loading public demo title route');
-    await page.goto(demoUrl(), { waitUntil: 'networkidle', timeout: timeoutMs });
+    log('loading public /demo route');
+    await page.goto(publicDemoUrl(), { waitUntil: 'networkidle', timeout: timeoutMs });
     await waitForGameApi(page);
     await page.waitForTimeout(1200);
 
     const titleState = await getState(page);
     const bodyText = await page.locator('body').innerText();
+    assert(new URL(page.url()).pathname === '/forge', `public /demo should redirect to /forge, got ${page.url()}`);
+    assert(new URL(page.url()).searchParams.has('play'), `public /demo should preserve play mode, got ${page.url()}`);
     assert(bodyText.includes('Baker Pantry Panic'), 'public demo shell does not name Baker Pantry Panic');
     assert(bodyText.includes('Enter / Space start'), 'public demo shell does not show start instruction');
     assert(!bodyText.includes('Generate & play'), 'public demo should not expose generation controls');
@@ -146,6 +156,15 @@ async function main() {
     assert(playState.enemiesAlive >= 3, `first wave should be visible, got ${playState.enemiesAlive} enemies`);
     assert(playState.playerHealth >= 120, `player should not be hit immediately, hp ${playState.playerHealth}`);
     assert(forbiddenCalls.length === 0, `public demo made model/API calls after start: ${forbiddenCalls.join(', ')}`);
+
+    const directPage = await browser.newPage({ viewport: { width: 1024, height: 760 } });
+    trackForbiddenCalls(directPage, forbiddenCalls);
+    await directPage.goto(demoUrl(), { waitUntil: 'networkidle', timeout: timeoutMs });
+    await waitForGameApi(directPage);
+    const directState = await getState(directPage);
+    assert(directState?.scene === 'title', `direct /forge?play should also wait on title, got ${directState?.scene}`);
+    await directPage.close();
+    assert(forbiddenCalls.length === 0, `direct /forge?play made model/API calls: ${forbiddenCalls.join(', ')}`);
 
     if (screenshotDir) {
       mkdirSync(screenshotDir, { recursive: true });
