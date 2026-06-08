@@ -102,14 +102,25 @@ export const weaponSchema = z.object({
   autoFire: z.boolean().default(true).describe('whether the runtime fires this weapon automatically at the nearest enemy'),
 });
 
+export const playerMovementModelSchema = z.enum(['direct', 'accelerated'])
+  .default('direct')
+  .describe('top-down movement model: direct arcade velocity or acceleration/drag character control');
+
 export const playerSchema = z.object({
   spriteKey: id.describe('asset key for the player sprite'),
   maxHealth: z.number().positive(),
   speed: z.number().positive(),
   radius: z.number().positive(),
+  movementModel: playerMovementModelSchema,
+  acceleration: z.number().positive().optional().describe('top-down acceleration used when movementModel=accelerated'),
+  drag: z.number().positive().optional().describe('top-down drag used when movementModel=accelerated'),
+  dashMultiplier: z.number().positive().optional().describe('velocity multiplier applied to a dash impulse'),
+  dashDurationMs: z.number().int().positive().optional().describe('milliseconds the dash state remains active'),
   dashCooldownMs: z.number().int().positive().default(900),
   meleeDamage: z.number().positive().default(18),
   meleeRange: z.number().positive().default(44),
+  meleeDurationMs: z.number().int().positive().optional().describe('milliseconds the melee hit arc remains active'),
+  meleeCooldownMs: z.number().int().positive().optional().describe('minimum milliseconds between melee attacks'),
   weapons: z.array(weaponSchema).min(1),
 });
 
@@ -319,6 +330,7 @@ export type SpriteSheetAnimation = z.infer<typeof spriteSheetAnimationSchema>;
 export type SpriteSheet = z.infer<typeof spriteSheetSchema>;
 export type Asset = z.infer<typeof assetSchema>;
 export type Weapon = z.infer<typeof weaponSchema>;
+export type PlayerMovementModel = z.infer<typeof playerMovementModelSchema>;
 export type Enemy = z.infer<typeof enemySchema>;
 export type Boss = z.infer<typeof bossSchema>;
 export type Wave = z.infer<typeof waveSchema>;

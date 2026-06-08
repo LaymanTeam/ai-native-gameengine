@@ -55,6 +55,12 @@ assert.equal(firstGameSlice.boss?.patterns[0], FIRST_GAME_VERTICAL_SLICE.expecte
 assert.equal(firstGameSlice.title, 'Baker Pantry Panic', 'first-game slice should use the authored pantry title');
 assert.equal(firstGameSlice.feelProfile, 'arcade-survivor', 'first-game slice should use the melee-friendly arcade profile');
 assert.equal(firstGameSlice.player.weapons[0]?.autoFire, false, 'first-game slice should be melee-first instead of auto-fire');
+assert.equal(firstGameSlice.player.movementModel, 'accelerated', 'first-game slice should use original-template acceleration/drag movement');
+assert.equal(firstGameSlice.player.acceleration, 1600, 'first-game slice should use original-template acceleration');
+assert.equal(firstGameSlice.player.drag, 1200, 'first-game slice should use original-template drag');
+assert.equal(firstGameSlice.player.dashMultiplier, 2.6, 'first-game slice should use original-template dash impulse');
+assert.equal(firstGameSlice.player.meleeDurationMs, 120, 'first-game slice should use original-template melee duration');
+assert.equal(firstGameSlice.player.meleeCooldownMs, 240, 'first-game slice should use original-template melee cooldown');
 assert.deepEqual(enemyRoles(firstGameSlice), ['chaser', 'charger', 'brute'], 'first-game slice should use pantry brawler enemy roles');
 assert.ok(firstGameSlice.assets.some((asset) => asset.key === 'scene-backdrop'), 'first-game slice should include a literal curated backdrop path');
 
@@ -269,6 +275,7 @@ if (legacyParsed.ok) {
   assert.equal(legacyParsed.definition.runtimeTemplate, 'arena-action', 'legacy runtimeTemplate should default');
   assert.equal(legacyParsed.definition.playStyle.pressure, 'standard', 'legacy playStyle pressure should default');
   assert.equal(legacyParsed.definition.playStyle.weaponCadence, 'steady', 'legacy playStyle cadence should default');
+  assert.equal(legacyParsed.definition.player.movementModel, 'direct', 'legacy player movement model should default');
 }
 
 const withSourceAsset = {

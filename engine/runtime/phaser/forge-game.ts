@@ -6,7 +6,7 @@
  */
 import * as Phaser from 'phaser';
 import { resolveAssetUrl } from '../../storage/asset-url';
-import type { Asset, Boss, Enemy, FeelProfile, GameDefinition, PlayStyle, SpriteSheetAnimation, Upgrade } from '../game-definition';
+import type { Asset, Boss, Enemy, FeelProfile, GameDefinition, PlayerMovementModel, PlayStyle, SpriteSheetAnimation, Upgrade } from '../game-definition';
 
 const hex = (c: string): number => Phaser.Display.Color.HexStringToColor(c).color;
 const colorLuma = (color: number): number => {
@@ -40,6 +40,7 @@ interface ForgeTestState {
   winCondition: GameDefinition['winCondition'];
   feelProfile: FeelProfile;
   playStyle: PlayStyle;
+  playerMovementModel: PlayerMovementModel;
   weaponCooldownMs: number;
   weaponProjectiles: number;
   weaponAutoFire: boolean;
@@ -540,6 +541,7 @@ const SAFE_STATE: ForgeTestState = {
   winCondition: 'clear-waves',
   feelProfile: DEFAULT_FEEL_PROFILE,
   playStyle: DEFAULT_PLAY_STYLE,
+  playerMovementModel: 'direct',
   weaponCooldownMs: 0,
   weaponProjectiles: 0,
   weaponAutoFire: true,
@@ -888,6 +890,13 @@ class ForgeScene extends Phaser.Scene {
   private moveSpeed = 200;
   private meleeDamage = 18;
   private meleeRange = 44;
+  private playerMovementModel: PlayerMovementModel = 'direct';
+  private movementAcceleration = 1600;
+  private movementDrag = 1100;
+  private dashMultiplier = 3.2;
+  private dashDurationMs = 170;
+  private meleeDurationMs = 95;
+  private meleeCooldownMs = 260;
   private magnetRange = 0;
   private facing: Facing = 'right';
   private lastAttackAt = -Infinity;
@@ -1336,6 +1345,13 @@ class ForgeScene extends Phaser.Scene {
     this.moveSpeed = Math.round(this.def.player.speed * pressure.playerSpeedScale);
     this.meleeDamage = this.def.player.meleeDamage;
     this.meleeRange = this.def.player.meleeRange;
+    this.playerMovementModel = this.isPlatformer() || this.isFlightShooter() ? 'direct' : this.def.player.movementModel;
+    this.movementAcceleration = Math.round((this.def.player.acceleration ?? 1600) * pressure.playerSpeedScale);
+    this.movementDrag = this.def.player.drag ?? 1100;
+    this.dashMultiplier = this.def.player.dashMultiplier ?? 3.2;
+    this.dashDurationMs = this.def.player.dashDurationMs ?? 170;
+    this.meleeDurationMs = this.def.player.meleeDurationMs ?? 95;
+    this.meleeCooldownMs = this.def.player.meleeCooldownMs ?? 260;
     this.magnetRange = 0;
     this.score = 0;
     this.relics = 0;
@@ -1538,7 +1554,11 @@ class ForgeScene extends Phaser.Scene {
       playerBody.setDragY(0);
       playerBody.setMaxVelocity(Math.max(320, this.moveSpeed * 2.1), 760);
     } else {
-      playerBody.setDrag(1100, 1100);
+      playerBody.setDrag(this.movementDrag, this.movementDrag);
+      playerBody.setMaxVelocity(
+        Math.max(this.moveSpeed, this.moveSpeed * this.dashMultiplier),
+        Math.max(this.moveSpeed, this.moveSpeed * this.dashMultiplier),
+      );
     }
     this.playerShadow = this.attachShadow(this.player, this.def.player.radius, 0.34);
     this.playerActorLayer = this.add.graphics().setDepth(DEPTH.player + 0.18);
@@ -1665,6 +1685,7 @@ class ForgeScene extends Phaser.Scene {
       winCondition: this.def.winCondition,
       feelProfile: this.feelProfile(),
       playStyle: this.playStyle(),
+      playerMovementModel: this.playerMovementModel,
       weaponCooldownMs: this.cooldownMs,
       weaponProjectiles: this.projectiles,
       weaponAutoFire: this.autoFire,
@@ -4371,7 +4392,8 @@ class ForgeScene extends Phaser.Scene {
   private applyMovement(intent: Intent, time: number) {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const dashActive = time < this.dashActiveUntil;
-    const speed = this.moveSpeed * (dashActive ? 2.8 : 1);
+    const topDownDashScale = this.playerMovementModel === 'accelerated' ? this.dashMultiplier : 2.8;
+    const speed = this.moveSpeed * (dashActive ? topDownDashScale : 1);
     if (this.isPlatformer()) {
       const grounded = body.blocked.down || body.touching.down;
       this.platformerGrounded = grounded;
@@ -4405,6 +4427,28 @@ class ForgeScene extends Phaser.Scene {
       }
       return;
     }
+    if (this.playerMovementModel === 'accelerated') {
+      body.setMaxVelocity(
+        Math.max(this.moveSpeed, speed),
+        Math.max(this.moveSpeed, speed),
+      );
+      if (intent.dx || intent.dy) {
+        const len = Math.hypot(intent.dx, intent.dy) || 1;
+        body.setAcceleration(
+          (intent.dx / len) * this.movementAcceleration,
+          (intent.dy / len) * this.movementAcceleration,
+        );
+        this.updateFacing(intent.dx, intent.dy);
+      } else {
+        body.setAcceleration(0, 0);
+      }
+      if (dashActive && time - this.lastTrailAt > 42) {
+        this.lastTrailAt = time;
+        this.afterimage(this.player, this.def.palette.xp, 0.34, 230);
+      }
+      return;
+    }
+    body.setAcceleration(0, 0);
     if (intent.dx || intent.dy) {
       const len = Math.hypot(intent.dx, intent.dy) || 1;
       const vx = (intent.dx / len) * speed;
@@ -4428,25 +4472,25 @@ class ForgeScene extends Phaser.Scene {
   private tryDash(intent: Intent, time: number) {
     if (time - this.lastDashAt < this.def.player.dashCooldownMs) return;
     this.lastDashAt = time;
-    this.dashActiveUntil = time + 170;
+    this.dashActiveUntil = time + this.dashDurationMs;
     const vec = this.isPlatformer()
       ? { x: intent.dx || (this.facing === 'left' ? -1 : 1), y: 0 }
       : intent.dx || intent.dy ? normalize(intent.dx, intent.dy) : facingVector(this.facing);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
-    body.setVelocity(vec.x * this.moveSpeed * 3.2, vec.y * this.moveSpeed * 3.2);
+    body.setVelocity(vec.x * this.moveSpeed * this.dashMultiplier, vec.y * this.moveSpeed * this.dashMultiplier);
     this.player.setAlpha(0.48);
-    this.time.delayedCall(170, () => this.player.setAlpha(1));
+    this.time.delayedCall(this.dashDurationMs, () => this.player.setAlpha(1));
     this.pulse(this.player.x, this.player.y, this.def.palette.xp, 26);
     this.afterimage(this.player, this.def.palette.xp, 0.5, 280);
   }
 
   private tryMelee(time: number) {
-    if (time - this.lastAttackAt < 260) return;
+    if (time - this.lastAttackAt < this.meleeCooldownMs) return;
     this.lastAttackAt = time;
-    this.attackActiveUntil = time + 95;
+    this.attackActiveUntil = time + this.meleeDurationMs;
     this.positionAttackArc();
     this.attackArc.setVisible(true).setAlpha(0.8);
-    this.tweens.add({ targets: this.attackArc, alpha: 0, scale: 1.25, duration: 120, onComplete: () => this.attackArc.setScale(1).setVisible(false) });
+    this.tweens.add({ targets: this.attackArc, alpha: 0, scale: 1.25, duration: this.meleeDurationMs, onComplete: () => this.attackArc.setScale(1).setVisible(false) });
     this.applyMeleeHits();
     this.sparkBurst(
       this.player.x + facingVector(this.facing).x * this.meleeRange * 0.7,
@@ -11686,6 +11730,17 @@ function runSelfTestIfRequested() {
         'runtime template reaches runtime',
         afterStart.runtimeTemplate === 'arena-action' || afterStart.runtimeTemplate === 'flight-shooter' || afterStart.runtimeTemplate === 'platformer' || afterStart.runtimeTemplate === 'puzzle-room' || afterStart.runtimeTemplate === 'agent-dashboard' || afterStart.runtimeTemplate === 'decision-room',
         `template ${afterStart.runtimeTemplate}`,
+      );
+      const isPantryBrawler =
+        afterStart.runtimeTemplate === 'arena-action' &&
+        afterStart.weaponAutoFire === false &&
+        afterStart.assetKeys?.boss === 'boss-overproofed-king';
+      check(
+        'player movement model reaches runtime',
+        isPantryBrawler
+          ? afterStart.playerMovementModel === 'accelerated'
+          : afterStart.playerMovementModel === 'direct' || afterStart.playerMovementModel === 'accelerated',
+        `movement ${afterStart.playerMovementModel}${isPantryBrawler ? ', expected accelerated pantry brawler' : ''}`,
       );
       if (afterStart.runtimeTemplate === 'flight-shooter') {
         check(
