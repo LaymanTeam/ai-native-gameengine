@@ -222,6 +222,7 @@ interface ForgeTestApi {
   getState(): ForgeTestState;
   press(action: TestAction, ms?: number): void;
   spawnEnemy(typeIndex: number): void;
+  spawnContactEnemy(typeIndex: number): void;
   spawnEliteEnemy(typeIndex: number): void;
   damagePlayer(amount: number): void;
   damageFirstEnemy(amount: number): void;
@@ -229,6 +230,7 @@ interface ForgeTestApi {
   stageVisualEvidence(): void;
   stagePublicDemo(): void;
   spawnBoss(): void;
+  spawnContactBoss(): void;
   triggerBossTelegraph(): void;
   triggerArenaHazard(): void;
   triggerSapperMine(): void;
@@ -1875,6 +1877,16 @@ class ForgeScene extends Phaser.Scene {
     }
   }
 
+  spawnContactEnemyForTest(typeIndex: number) {
+    const enemy = this.def.enemies[clamp(typeIndex, 0, this.def.enemies.length - 1)] ?? this.def.enemies[0]!;
+    this.suppressSpawnsUntil = this.time.now + 4200;
+    const spawned = this.spawnEnemy(enemy, false, {
+      x: clamp(this.player.x + Math.max(4, this.def.player.radius * 0.35), 24, this.scale.width - 24),
+      y: this.player.y,
+    });
+    spawned.setData('spawnUntil', this.time.now - 1);
+  }
+
   spawnEliteEnemyForTest(typeIndex: number) {
     const enemy = this.def.enemies[clamp(typeIndex, 0, this.def.enemies.length - 1)] ?? this.def.enemies[0]!;
     this.spawnEnemy(enemy, false, this.chooseSpawnPoint(false), 'armored');
@@ -2024,6 +2036,18 @@ class ForgeScene extends Phaser.Scene {
           ? { x: this.scale.width * 0.64, y: this.scale.height * 0.22 }
         : { x: this.scale.width * 0.64, y: this.scale.height * 0.34 };
     this.spawnEnemy(this.def.boss, true, point);
+  }
+
+  spawnContactBossForTest() {
+    if (!this.def.boss) return;
+    if (this.boss?.active) this.boss.destroy();
+    this.bossSpawned = true;
+    this.suppressSpawnsUntil = this.time.now + 4200;
+    const spawned = this.spawnEnemy(this.def.boss, true, {
+      x: clamp(this.player.x + Math.max(10, this.def.player.radius * 0.7), 48, this.scale.width - 48),
+      y: this.player.y,
+    });
+    spawned.setData('spawnUntil', this.time.now - 1);
   }
 
   triggerBossTelegraphForTest() {
@@ -4751,7 +4775,15 @@ class ForgeScene extends Phaser.Scene {
   private touchPlayer(enemy: ArcadeImage) {
     const isBoss = enemy.getData('boss') as boolean;
     const bossCharging = isBoss && enemy.getData('charging') === true;
-    const amount = (enemy.getData('damage') as number) * (bossCharging ? 0.34 : 0.08);
+    const baseDamage = enemy.getData('damage') as number;
+    const manualMelee = this.autoFire === false;
+    const multiplier = manualMelee
+      ? isBoss
+        ? bossCharging ? 2.4 : 2
+        : 0.55
+      : bossCharging ? 0.34 : 0.08;
+    const floor = manualMelee ? (isBoss ? 24 : 4) : 0;
+    const amount = Math.max(floor, baseDamage * multiplier);
     this.damagePlayer(amount);
   }
 
@@ -11434,6 +11466,9 @@ function installGameTestHooks(game: Phaser.Game, def: GameDefinition) {
     spawnEnemy(typeIndex) {
       try { activePlay()?.spawnEnemyForTest(typeIndex); } catch {}
     },
+    spawnContactEnemy(typeIndex) {
+      try { activePlay()?.spawnContactEnemyForTest(typeIndex); } catch {}
+    },
     spawnEliteEnemy(typeIndex) {
       try { activePlay()?.spawnEliteEnemyForTest(typeIndex); } catch {}
     },
@@ -11454,6 +11489,9 @@ function installGameTestHooks(game: Phaser.Game, def: GameDefinition) {
     },
     spawnBoss() {
       try { activePlay()?.spawnBossForTest(); } catch {}
+    },
+    spawnContactBoss() {
+      try { activePlay()?.spawnContactBossForTest(); } catch {}
     },
     triggerBossTelegraph() {
       try { activePlay()?.triggerBossTelegraphForTest(); } catch {}
@@ -12362,6 +12400,35 @@ function runSelfTestIfRequested() {
         afterUpgrade.choosingUpgrade === false && afterUpgrade.level > levelBefore,
         `level ${levelBefore}->${afterUpgrade.level}, choosing ${afterUpgrade.choosingUpgrade}`,
       );
+      if (api.getState().weaponAutoFire === false) {
+        api.killAllEnemies();
+        await sleep(120);
+        const contactHp = api.getState().playerHealth;
+        api.spawnContactEnemy(0);
+        await sleep(700);
+        const afterContact = api.getState();
+        check(
+          'manual-melee contact enemy damages player',
+          afterContact.scene === 'play' && afterContact.playerHealth < contactHp,
+          `hp ${contactHp}->${afterContact.playerHealth}, scene ${afterContact.scene}`,
+        );
+        api.killAllEnemies();
+        await sleep(120);
+        api.spawnContactBoss();
+        let bossContactState = api.getState();
+        const bossContactDeadline = Date.now() + 7000;
+        while (bossContactState.scene === 'play' && Date.now() < bossContactDeadline) {
+          await sleep(220);
+          bossContactState = api.getState();
+        }
+        check(
+          'manual-melee boss contact can defeat player',
+          bossContactState.scene === 'lose',
+          `scene ${bossContactState.scene}, hp ${bossContactState.playerHealth}`,
+        );
+        api.press('restart');
+        await sleep(700);
+      }
       const hp = api.getState().playerHealth;
       api.damagePlayer(1);
       await sleep(200);
