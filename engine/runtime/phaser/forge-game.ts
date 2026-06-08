@@ -26,6 +26,11 @@ const DEFAULT_PLAY_STYLE: PlayStyle = {
 };
 const DEFAULT_FEEL_PROFILE: FeelProfile = 'arcade-survivor';
 
+function isPantryBrawlerDefinition(def: GameDefinition) {
+  const text = `${def.title} ${def.theme} ${def.controls.join(' ')}`.toLowerCase();
+  return arenaMood(def) === 'bakery' && def.winCondition === 'defeat-boss' && /\b(baker|pantry|spatula)\b/.test(text);
+}
+
 interface ForgeHandle { destroy(): void; }
 
 type ForgeSceneKey = 'title' | 'forge' | 'win' | 'lose';
@@ -4709,6 +4714,14 @@ class ForgeScene extends Phaser.Scene {
       return {
         x: isBoss ? this.scale.width - 156 : this.scale.width + Phaser.Math.Between(34, 96),
         y: isBoss ? this.scale.height - 154 : this.scale.height - 112,
+      };
+    }
+    if (!isBoss && isPantryBrawlerDefinition(this.def)) {
+      const distance = Phaser.Math.Between(390, 540);
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      return {
+        x: this.clampWorldX(this.player.x + Math.cos(angle) * distance, 76),
+        y: this.clampWorldY(this.player.y + Math.sin(angle) * distance, 76),
       };
     }
     const edge = Phaser.Math.Between(0, 3);

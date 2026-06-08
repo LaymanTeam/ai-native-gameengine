@@ -161,7 +161,12 @@ function isLocalForgeMode(search: string) {
 
 function shouldStageForgeDemo(search: string) {
   const params = new URLSearchParams(search);
-  return params.has('play') && !params.has('selftest') && !params.has('nostage');
+  return params.has('play') && !params.has('selftest') && (params.has('stage') || params.has('showcase'));
+}
+
+function isPublicForgeDemo(search: string) {
+  const params = new URLSearchParams(search);
+  return params.has('play') && !params.has('selftest');
 }
 
 async function streamForgeDefinition({
@@ -220,7 +225,7 @@ export default function ForgePage() {
     const search = window.location.search;
     setUrlMode({
       localMode: isLocalForgeMode(search),
-      publicDemoMode: shouldStageForgeDemo(search),
+      publicDemoMode: isPublicForgeDemo(search),
     });
   }, []);
 
@@ -515,11 +520,12 @@ export default function ForgePage() {
   }, []);
 
   useEffect(() => {
-    if (!build || typeof window === 'undefined' || !shouldStageForgeDemo(window.location.search)) {
+    if (!build || typeof window === 'undefined' || !isPublicForgeDemo(window.location.search)) {
       return undefined;
     }
 
     let cancelled = false;
+    const stageShowcase = shouldStageForgeDemo(window.location.search);
     const windowWithTestApi = window as Window & { __GAME_TEST__?: DemoForgeTestApi };
     const timers: number[] = [];
     const schedule = (callback: () => void, ms: number) => {
@@ -536,17 +542,21 @@ export default function ForgePage() {
       }
 
       const state = api.getState();
-      if (state.scene !== 'play') api.press('start');
-      schedule(() => {
-        if (cancelled) return;
-        api.stagePublicDemo?.();
-      }, 450);
-      [1500, 2400, 3600].forEach((ms) => {
+      const params = new URLSearchParams(window.location.search);
+      const autoStart = stageShowcase || params.has('autostart');
+      if (autoStart && state.scene !== 'play') api.press('start');
+      if (stageShowcase) {
         schedule(() => {
           if (cancelled) return;
-          api.chooseUpgrade(0);
-        }, ms);
-      });
+          api.stagePublicDemo?.();
+        }, 450);
+        [1500, 2400, 3600].forEach((ms) => {
+          schedule(() => {
+            if (cancelled) return;
+            api.chooseUpgrade(0);
+          }, ms);
+        });
+      }
     };
 
     schedule(() => stageWhenReady(), 240);
@@ -576,6 +586,7 @@ export default function ForgePage() {
 
             <Paper withBorder radius="md" p="sm" bg="var(--forge-bone-2)">
               <Text size="xs" fw={700} tt="uppercase" c="sage" lts="0.08em">Play</Text>
+              <Text size="xs" c="dimmed" mt={4}>Enter / Space start</Text>
               <Text size="xs" c="dimmed" mt={4}>WASD / arrows move</Text>
               <Text size="xs" c="dimmed">Space / J swing</Text>
               <Text size="xs" c="dimmed">Shift / K dash</Text>
