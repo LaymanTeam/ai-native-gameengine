@@ -234,6 +234,7 @@ interface ForgeTestApi {
   spawnEliteEnemy(typeIndex: number): void;
   damagePlayer(amount: number): void;
   damageFirstEnemy(amount: number): void;
+  damageBoss(amount: number): void;
   completeCurrentWave(): void;
   triggerComboReward(): void;
   stageVisualEvidence(): void;
@@ -1988,6 +1989,11 @@ class ForgeScene extends Phaser.Scene {
       .getArray()
       .find((child) => !(child as ArcadeImage).getData('boss')) as ArcadeImage | undefined;
     if (firstEnemy?.active) this.hitEnemy(undefined, firstEnemy, amount, false);
+  }
+
+  damageBossForTest(amount: number) {
+    if (!this.boss?.active) return;
+    this.hitEnemy(undefined, this.boss, amount, false);
   }
 
   completeCurrentWaveForTest() {
@@ -11702,6 +11708,9 @@ function installGameTestHooks(game: Phaser.Game, def: GameDefinition) {
     damageFirstEnemy(amount) {
       try { activePlay()?.damageFirstEnemyForTest(amount); } catch {}
     },
+    damageBoss(amount) {
+      try { activePlay()?.damageBossForTest(amount); } catch {}
+    },
     completeCurrentWave() {
       try { activePlay()?.completeCurrentWaveForTest(); } catch {}
     },
@@ -11966,6 +11975,25 @@ function runSelfTestIfRequested() {
           afterSecondWaveClear.wavesCleared >= 2 &&
             afterSecondWaveClear.bossHealth !== null,
           `cleared ${afterSecondWaveClear.wavesCleared}, boss ${afterSecondWaveClear.bossHealth}`,
+        );
+        const bossHpBeforeDamage = afterSecondWaveClear.bossHealth ?? 0;
+        api.damageBoss(Math.max(1, Math.floor(bossHpBeforeDamage / 4)));
+        await sleep(260);
+        const afterBossDamage = api.getState();
+        check(
+          'pantry boss can take combat damage',
+          afterBossDamage.scene === 'play' &&
+            afterBossDamage.bossHealth !== null &&
+            afterBossDamage.bossHealth < bossHpBeforeDamage,
+          `boss ${bossHpBeforeDamage}->${afterBossDamage.bossHealth}, scene ${afterBossDamage.scene}`,
+        );
+        api.damageBoss(9999);
+        await sleep(520);
+        const afterBossDefeat = api.getState();
+        check(
+          'defeating pantry boss wins',
+          afterBossDefeat.scene === 'win',
+          `scene ${afterBossDefeat.scene}, boss ${afterBossDefeat.bossHealth}`,
         );
         api.press('restart');
         await sleep(800);
