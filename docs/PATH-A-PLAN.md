@@ -2,9 +2,9 @@
 
 **Goal:** a user prompt → the engine **generates** a polished, sprite-based game (icons, rules,
 systems, boss, waves, win/lose) that **actually runs** — at the sophistication level of a
-hand-crafted game like the `hackathon3` bakery roguelite, but produced by the AI pipeline.
+hand-crafted vertical slice, but produced by the AI pipeline.
 
-> We are **not porting** any existing game. `hackathon3` is only the *quality benchmark*. Path A
+> We are **not porting** any existing game. The benchmark is a polished playable vertical slice. Path A
 > builds our **own** runtime SDK and the AI generates games on top of it.
 
 ## The core idea
@@ -12,7 +12,7 @@ LLMs are unreliable at writing a whole engine, but reliable at **filling in rule
 logic against a solid toolbox.** So we build that toolbox (the **SDK**), and the AI writes the thin,
 game-specific layer on top. **Sophistication = SDK depth × asset quality × codegen reliability.**
 
-Where each piece of "a game like hackathon3" comes from:
+Where each piece of a polished generated game comes from:
 | Ingredient | Source |
 |---|---|
 | Sprites / icons / art | Asset pipeline (image model → style bible → sprite atlas) — M4 |

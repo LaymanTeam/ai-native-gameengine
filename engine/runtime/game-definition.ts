@@ -3,7 +3,7 @@
  * loads into a running game. This is the heart of Path A (see docs/PATH-A-PLAN.md): the coder
  * produces a GameDefinition (data + references to generated sprites + light behavior selection)
  * rather than writing the engine; the SDK's systems (movement, combat, AI, waves, boss, HUD, VFX)
- * do the heavy lifting. Rich enough for sprite-based, rule-deep games (the hackathon3 bar) while
+ * do the heavy lifting. Rich enough for sprite-based, rule-deep games while
  * staying bounded and declarative so structured-output models can produce it reliably.
  *
  * NOTE: explicit, closed objects on purpose — Gemini structured output needs every field defined.

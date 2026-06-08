@@ -18,7 +18,7 @@ const LINKS = [
 ] as const;
 
 const GAME_SURFACE_LINKS = [
-  { href: '/forge?play', label: 'Bakery prototype' },
+  { href: '/forge?play', label: 'Bakery build' },
 ] as const;
 
 function SparkMark() {
@@ -72,7 +72,7 @@ export function TopBar() {
         <Group gap="lg" ml="auto" wrap="nowrap">
           <Group gap={8} wrap="nowrap">
             <Box w={6} h={6} style={{ borderRadius: '50%', background: 'var(--forge-accent)' }} />
-            <Text size="sm" c="dimmed">{isGameSurface ? 'no API spend' : 'ready'}</Text>
+            <Text size="sm" c="dimmed">ready</Text>
           </Group>
           {!isGameSurface && <Avatar size={30} radius="xl" color="gray" variant="light">T</Avatar>}
         </Group>
