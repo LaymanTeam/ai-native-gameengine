@@ -17,16 +17,6 @@ import type { EngineEvent } from '@/engine/frontend/integration/contracts';
 
 const SAMPLES = [
   FIRST_GAME_VERTICAL_SLICE.prompt,
-  'a chaotic haunted bakery roguelite',
-  'a neon space arena shooter with drone swarms',
-  'a cozy coastal survivor gathering light',
-  'a fast airplane shooter with storm clouds, enemy fighters, and a zeppelin boss',
-  'a castle platformer jump quest with ledge monsters and a clockwork boss',
-  'a crystal temple puzzle where an archivist pushes mirrors onto switches and opens a moon gate',
-  'a boardroom decision app for a product launch with stakeholders evidence options recommendation and audit trail',
-  'an agent operations dashboard for shipping a Vercel game app with queues approvals logs and deployment health',
-  'a neon reactor core defense run',
-  'a neon uplink repair node network run',
 ];
 interface AssetProductionSummary {
   ok: boolean;
@@ -578,16 +568,16 @@ export default function ForgePage() {
           <>
             <Paper withBorder radius="md" p="md" className="forge-demo-brief">
               <Text size="xs" tt="uppercase" fw={700} c="sage" lts="0.08em">Playable build</Text>
-              <Text fw={650} fz="lg" mt={4}>Bakery portal raid</Text>
+              <Text fw={650} fz="lg" mt={4}>Baker Pantry Panic</Text>
               <Text size="sm" c="dimmed" mt={4}>
-                A compact top-down arcade raid.
+                A compact top-down kitchen brawler.
               </Text>
             </Paper>
 
             <Paper withBorder radius="md" p="sm" bg="var(--forge-bone-2)">
               <Text size="xs" fw={700} tt="uppercase" c="sage" lts="0.08em">Play</Text>
               <Text size="xs" c="dimmed" mt={4}>WASD / arrows move</Text>
-              <Text size="xs" c="dimmed">Space / J attack</Text>
+              <Text size="xs" c="dimmed">Space / J swing</Text>
               <Text size="xs" c="dimmed">Shift / K dash</Text>
             </Paper>
           </>
@@ -608,7 +598,7 @@ export default function ForgePage() {
                 <Box miw={0}>
                   <Text size="xs" tt="uppercase" fw={700} c="sage" lts="0.08em">First game</Text>
                   <Text fw={600}>{FIRST_GAME_VERTICAL_SLICE.label}</Text>
-                  <Text size="xs" c="dimmed">Boss-backed bakery arena slice</Text>
+                  <Text size="xs" c="dimmed">Melee-first pantry brawler</Text>
                 </Box>
                 <Button
                   color="dark"
@@ -797,14 +787,14 @@ export default function ForgePage() {
 
       <Stack gap="xs" mih={0} className="forge-runtime-stage">
         <Group justify="space-between" gap="sm" className="forge-stage-heading">
-          <Text size="xs" tt="uppercase" fw={600} c="sage" lts="0.1em">{publicDemoMode ? 'Bakery raid' : 'Live build · Forge'}</Text>
+          <Text size="xs" tt="uppercase" fw={600} c="sage" lts="0.1em">{publicDemoMode ? 'Pantry panic' : 'Live build · Forge'}</Text>
         </Group>
         <Paper withBorder radius="lg" className="forge-runtime-frame">
           {build
             ? <PhaserGame key={build.key} definition={build.def} />
             : <Stack h="100%" align="center" justify="center" p="xl"><Text fw={500} c="dimmed">Press Generate &amp; play</Text><Text size="sm" c="dimmed" ta="center" maw={420}>A real playable game is generated from the GameDefinition. Move, dash, swing, survive waves, repair nodes, defend cores, escort allies, hold capture zones, collect relics, chase score, or beat the boss.</Text></Stack>}
         </Paper>
-        {build && <Text size="xs" c="dimmed" ta="center">Click the game · WASD / arrows move · Space/J attack · Shift/K dash · P pause</Text>}
+        {build && <Text size="xs" c="dimmed" ta="center">Click the game · WASD / arrows move · Space/J swing · Shift/K dash · P pause</Text>}
       </Stack>
     </Box>
   );

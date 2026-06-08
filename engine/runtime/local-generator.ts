@@ -50,7 +50,7 @@ const THEMES: Theme[] = [
     enemies: ['Drone', 'Ion Wisp', 'Star Reaver'], boss: 'Void Leviathan', tile: '#141a2e',
   },
   {
-    match: ['bakery', 'pizza', 'kitchen', 'chef', 'food', 'pastr', 'cake', 'sugar', 'bread'],
+    match: ['bakery', 'pizza', 'kitchen', 'chef', 'food', 'pastr', 'cake', 'sugar', 'bread', 'pantry', 'baker'],
     palette: { background: '#241a14', floor: '#2e221a', accent: '#c2895a', player: '#f3d9a8', projectile: '#ffe08a', danger: '#d65a3c', xp: '#ffd479' },
     enemies: ['Crumb Skitter', 'Burnt Macaron', 'Rolling Pan'], boss: 'Overproofed King', tile: '#2e221a',
   },
@@ -166,7 +166,7 @@ function matchesThemeWord(word: string, matcher: string): boolean { return word 
 
 function selectWinCondition(words: string[], seed: number): WinCondition {
   const has = (...needles: string[]) => needles.some((needle) => words.some((word) => word === needle || word.startsWith(needle)));
-  if (has('boss', 'raid', 'leviathan', 'horror', 'warden', 'maw')) return 'defeat-boss';
+  if (has('boss', 'raid', 'defeat', 'defeats', 'overproofed', 'leviathan', 'horror', 'warden', 'maw')) return 'defeat-boss';
   if (has('rescue', 'stranded', 'downed', 'medic', 'recover', 'save')) return 'rescue';
   if (has('defend', 'base', 'core', 'generator', 'reactor', 'shrine', 'outpost', 'ward', 'keep', 'sanctum', 'fortress')) return 'defend-core';
   if (has('escort', 'protect', 'convoy', 'caravan', 'guide', 'deliver', 'pilgrim', 'companion')) return 'escort';
@@ -513,11 +513,11 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
   const promptLower = clean.toLowerCase();
   const words = clean.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
   const bakeryTheme = THEMES.find((candidate) => candidate.boss === 'Overproofed King');
-  const theme = /(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven)/.test(promptLower)
+  const theme = /(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|pantry|baker)/.test(promptLower)
     ? bakeryTheme ?? DEFAULT_THEME
     : THEMES.find((t) => t.match.some((m) => words.some((w) => matchesThemeWord(w, m)))) ?? DEFAULT_THEME;
   const seed = hash(clean);
-  const title = titleCase(words.slice(0, 4).join(' ')) || 'Neon Rift';
+  let title = titleCase(words.slice(0, 4).join(' ')) || 'Neon Rift';
   const runtimeTemplate = selectRuntimeTemplate(words);
   const playerSpriteKey = 'hero';
   const winCondition: WinCondition = runtimeTemplate === 'puzzle-room'
@@ -527,16 +527,20 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
       : runtimeTemplate === 'decision-room'
         ? 'select-decision'
         : selectWinCondition(words, seed);
-  const isBakeryTheme = theme.boss === 'Overproofed King' || /(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven)/.test(promptLower);
+  const isBakeryTheme = theme.boss === 'Overproofed King' || /(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|pantry|baker)/.test(promptLower);
+  const isPantryPanic = isBakeryTheme && /\b(baker|pantry|panic|spatula)\b/.test(promptLower);
+  if (isPantryPanic) title = 'Baker Pantry Panic';
   const wantsBakeryPortalBackdrop = winCondition === 'defeat-boss' && isBakeryTheme;
-  const feelProfile = selectFeelProfile(words, winCondition, seed);
+  const feelProfile = isPantryPanic ? 'arcade-survivor' : selectFeelProfile(words, winCondition, seed);
   const playStyle = runtimeTemplate === 'puzzle-room'
     ? { pressure: 'relaxed' as const, weaponCadence: 'deliberate' as const, camera: 'steady' as const, readability: 'clean' as const }
     : runtimeTemplate === 'agent-dashboard'
       ? { pressure: 'siege' as const, weaponCadence: 'deliberate' as const, camera: 'steady' as const, readability: 'clean' as const }
       : runtimeTemplate === 'decision-room'
         ? { pressure: 'relaxed' as const, weaponCadence: 'deliberate' as const, camera: 'steady' as const, readability: 'clean' as const }
-        : selectPlayStyle(words, winCondition, feelProfile, seed);
+        : isPantryPanic
+          ? { pressure: 'standard' as const, weaponCadence: 'deliberate' as const, camera: 'responsive' as const, readability: 'high-contrast' as const }
+          : selectPlayStyle(words, winCondition, feelProfile, seed);
   const usesBoss = winCondition === 'defeat-boss';
   const bossSpriteKey = `boss-${kebab(theme.boss)}`;
   const escortSpriteKey = 'escort';
@@ -544,33 +548,58 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
   const defendSpriteKey = 'defend-core';
   const floorKey = 'floor';
   const backdropKey = 'scene-backdrop';
-  const enemyRoles = selectEnemyRoles(feelProfile);
+  const enemyRoles = isPantryPanic
+    ? (['chaser', 'charger', 'brute'] as const)
+    : selectEnemyRoles(feelProfile);
+  const enemyNames = isPantryPanic
+    ? (['Crumb Skitter', 'Rolling Pin', 'Dough Proofling'] as const)
+    : theme.enemies;
 
-  const enemies = theme.enemies.map((name, i) => ({
+  const enemies = enemyNames.map((name, i) => ({
     id: `enemy-${kebab(name)}`,
     name,
     spriteKey: `enemy-${kebab(name)}`,
     role: enemyRoles[i] ?? 'chaser',
-    health: wantsBakeryPortalBackdrop
+    health: isPantryPanic
+      ? [14, 22, 34][i] ?? 18
+      : wantsBakeryPortalBackdrop
       ? [18, 30, 24][i] ?? 20
       : scaledStat(14 + i * 10 + (seed % 8), ROLE_STATS[enemyRoles[i] ?? 'chaser'].health, PROFILE_ENEMY_STATS[feelProfile].health),
-    speed: wantsBakeryPortalBackdrop
+    speed: isPantryPanic
+      ? [112, 140, 78][i] ?? 100
+      : wantsBakeryPortalBackdrop
       ? [92, 118, 74][i] ?? 90
       : scaledStat(70 + i * 18, ROLE_STATS[enemyRoles[i] ?? 'chaser'].speed, PROFILE_ENEMY_STATS[feelProfile].speed),
-    damage: wantsBakeryPortalBackdrop
+    damage: isPantryPanic
+      ? [6, 9, 12][i] ?? 7
+      : wantsBakeryPortalBackdrop
       ? [6, 9, 8][i] ?? 7
       : scaledStat(6 + i * 2, ROLE_STATS[enemyRoles[i] ?? 'chaser'].damage, PROFILE_ENEMY_STATS[feelProfile].damage),
-    radius: wantsBakeryPortalBackdrop
+    radius: isPantryPanic
+      ? [14, 16, 19][i] ?? 15
+      : wantsBakeryPortalBackdrop
       ? [15, 17, 16][i] ?? 15
       : scaledStat(12 + i * 2, ROLE_STATS[enemyRoles[i] ?? 'chaser'].radius),
-    xp: wantsBakeryPortalBackdrop
+    xp: isPantryPanic
+      ? [4, 6, 8][i] ?? 5
+      : wantsBakeryPortalBackdrop
       ? [5, 7, 8][i] ?? 5
       : scaledStat(3 + i * 2, ROLE_STATS[enemyRoles[i] ?? 'chaser'].xp, PROFILE_ENEMY_STATS[feelProfile].xp),
-    score: wantsBakeryPortalBackdrop
+    score: isPantryPanic
+      ? [20, 35, 55][i] ?? 30
+      : wantsBakeryPortalBackdrop
       ? [25, 40, 55][i] ?? 30
       : scaledStat(10 + i * 5, ROLE_STATS[enemyRoles[i] ?? 'chaser'].score, PROFILE_ENEMY_STATS[feelProfile].score),
   }));
-  const waves = wantsBakeryPortalBackdrop
+  const waves = isPantryPanic
+    ? [
+        { atSeconds: 1, enemyId: enemies[0]?.id ?? 'enemy-crumb-skitter', count: 3, everyMs: 1120 },
+        { atSeconds: 8, enemyId: enemies[1]?.id ?? 'enemy-rolling-pin', count: 2, everyMs: 1260 },
+        { atSeconds: 16, enemyId: enemies[0]?.id ?? 'enemy-crumb-skitter', count: 5, everyMs: 940 },
+        { atSeconds: 26, enemyId: enemies[2]?.id ?? 'enemy-dough-proofling', count: 2, everyMs: 1180 },
+        { atSeconds: 38, enemyId: enemies[1]?.id ?? 'enemy-rolling-pin', count: 3, everyMs: 980 },
+      ]
+    : wantsBakeryPortalBackdrop
     ? [
         { atSeconds: 1, enemyId: enemies[0]?.id ?? 'enemy-macaron', count: 4, everyMs: 920 },
         { atSeconds: 7, enemyId: enemies[1]?.id ?? 'enemy-rolling-pin', count: 3, everyMs: 980 },
@@ -585,14 +614,14 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
     name: theme.boss,
     spriteKey: bossSpriteKey,
     role: 'brute' as const,
-    health: wantsBakeryPortalBackdrop ? 680 : 600 + (seed % 400),
-    speed: wantsBakeryPortalBackdrop ? 34 : 45,
-    damage: 18,
-    radius: wantsBakeryPortalBackdrop ? 42 : 34,
+    health: isPantryPanic ? 560 : wantsBakeryPortalBackdrop ? 680 : 600 + (seed % 400),
+    speed: isPantryPanic ? 38 : wantsBakeryPortalBackdrop ? 34 : 45,
+    damage: isPantryPanic ? 16 : 18,
+    radius: isPantryPanic ? 38 : wantsBakeryPortalBackdrop ? 42 : 34,
     xp: 50,
     score: 500,
-    spawnAtSeconds: wantsBakeryPortalBackdrop ? 32 : 75,
-    patterns: wantsBakeryPortalBackdrop ? (['summon', 'radial-burst', 'beam'] as BossPattern[]) : selectBossPatterns(words, seed),
+    spawnAtSeconds: isPantryPanic ? 24 : wantsBakeryPortalBackdrop ? 32 : 75,
+    patterns: isPantryPanic ? (['charge', 'summon', 'radial-burst'] as BossPattern[]) : wantsBakeryPortalBackdrop ? (['summon', 'radial-burst', 'beam'] as BossPattern[]) : selectBossPatterns(words, seed),
   } : undefined;
   const scoreTarget = winCondition === 'score-target' ? 210 + (seed % 110) : undefined;
   const relicTarget = winCondition === 'collect-relics' ? 3 + (seed % 3) : undefined;
@@ -801,27 +830,37 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
     assets,
     player: {
       spriteKey: playerSpriteKey,
-      maxHealth: 100 + (seed % 60),
-      speed: runtimeTemplate === 'flight-shooter' ? 230 : runtimeTemplate === 'platformer' ? 215 : 200,
+      maxHealth: isPantryPanic ? 128 : 100 + (seed % 60),
+      speed: isPantryPanic ? 218 : runtimeTemplate === 'flight-shooter' ? 230 : runtimeTemplate === 'platformer' ? 215 : 200,
       radius: 14,
-      dashCooldownMs: 850 + ((seed >>> 3) % 250),
-      meleeDamage: 18 + ((seed >>> 9) % 8),
-      meleeRange: 46,
+      dashCooldownMs: isPantryPanic ? 720 : 850 + ((seed >>> 3) % 250),
+      meleeDamage: isPantryPanic ? 30 : 18 + ((seed >>> 9) % 8),
+      meleeRange: isPantryPanic ? 58 : 46,
       weapons: [{
         id: 'primary',
-        name: wantsBakeryPortalBackdrop ? 'Searing Spatula' : 'Auto Bolt',
-        damage: wantsBakeryPortalBackdrop ? 12 : 10,
-        cooldownMs: wantsBakeryPortalBackdrop ? 310 : 360 + ((seed >>> 5) % 240),
-        projectileSpeed: wantsBakeryPortalBackdrop ? 500 : 460,
-        projectiles: wantsBakeryPortalBackdrop ? 2 : 1 + ((seed >>> 7) % 3),
-        spread: wantsBakeryPortalBackdrop ? 0.24 : 0.18,
-        pierce: wantsBakeryPortalBackdrop ? 1 : 0,
+        name: isPantryPanic ? 'Spatula Swing' : wantsBakeryPortalBackdrop ? 'Searing Spatula' : 'Auto Bolt',
+        damage: isPantryPanic ? 1 : wantsBakeryPortalBackdrop ? 12 : 10,
+        cooldownMs: isPantryPanic ? 1200 : wantsBakeryPortalBackdrop ? 310 : 360 + ((seed >>> 5) % 240),
+        projectileSpeed: isPantryPanic ? 1 : wantsBakeryPortalBackdrop ? 500 : 460,
+        projectiles: isPantryPanic ? 1 : wantsBakeryPortalBackdrop ? 2 : 1 + ((seed >>> 7) % 3),
+        spread: isPantryPanic ? 0 : wantsBakeryPortalBackdrop ? 0.24 : 0.18,
+        pierce: isPantryPanic ? 0 : wantsBakeryPortalBackdrop ? 1 : 0,
+        autoFire: !isPantryPanic,
       }],
     },
     enemies,
     ...(boss ? { boss } : {}),
     waves,
-    upgrades: wantsBakeryPortalBackdrop
+    upgrades: isPantryPanic
+      ? [
+          { id: 'up-sharpened-spatula', name: 'Sharpened Spatula', kind: 'damage', amount: 7 },
+          { id: 'up-apron-dash', name: 'Apron Dash', kind: 'speed', amount: 30 },
+          { id: 'up-padded-apron', name: 'Padded Apron', kind: 'maxHealth', amount: 26 },
+          { id: 'up-crumb-magnet', name: 'Crumb Magnet', kind: 'magnet', amount: 90 },
+          { id: 'up-emergency-eclair', name: 'Emergency Eclair', kind: 'healing', amount: 34 },
+          { id: 'up-long-handle', name: 'Long Handle', kind: 'damage', amount: 5 },
+        ]
+      : wantsBakeryPortalBackdrop
       ? [
           { id: 'up-keen-edge', name: 'Keen Edge', kind: 'damage', amount: 5 },
           { id: 'up-fast-hands', name: 'Fast Hands', kind: 'cooldown', amount: 60 },
@@ -845,6 +884,8 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
           ? `${titleCase(words.slice(0, 2).join(' ') || 'Agent')} Ops Cockpit`
           : runtimeTemplate === 'decision-room'
             ? `${titleCase(words.slice(0, 2).join(' ') || 'Decision')} Boardroom`
+            : isPantryPanic
+              ? "Baker's Pantry"
             : wantsBakeryPortalBackdrop
               ? 'Bakery Portal Arena'
             : `${titleCase(words.slice(0, 2).join(' ') || 'Rift')} Arena`,
@@ -858,11 +899,12 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
     ...(decisionRoom ? { decisionRoom } : {}),
     controls: [
       'move (WASD/arrows)',
-      'manual attack (Space/J)',
+      isPantryPanic ? 'swing spatula (Space/J)' : 'manual attack (Space/J)',
       'dash (Shift/K)',
-      'auto-fire',
+      ...(isPantryPanic ? [] : ['auto-fire']),
       'pick upgrade on level up',
-      ...(wantsBakeryPortalBackdrop ? ['clear the haunted bakery: cut through enchanted pastries, dodge sugar magic, and defeat the Overproofed King'] : []),
+      ...(isPantryPanic ? ['clear the pantry: swing the spatula, dodge rolling pins, and defeat the Overproofed King'] : []),
+      ...(!isPantryPanic && wantsBakeryPortalBackdrop ? ['clear the haunted bakery: cut through enchanted pastries, dodge sugar magic, and defeat the Overproofed King'] : []),
       ...(runtimeTemplate === 'flight-shooter' ? ['flight template: forward pressure lanes'] : []),
       ...(runtimeTemplate === 'platformer' ? ['platformer template: jump arcs and ledges'] : []),
       ...(runtimeTemplate === 'puzzle-room' ? ['puzzle-room template: step, push blocks, light switches, reach exit'] : []),

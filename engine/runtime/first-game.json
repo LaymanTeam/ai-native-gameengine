@@ -1,9 +1,9 @@
 {
-  "id": "bakery-portal-raid",
-  "label": "Haunted bakery raid",
-  "prompt": "a haunted bakery room-clearing boss raid where a chef fights enchanted pastries and the Overproofed King with kitchen magic",
+  "id": "baker-pantry-panic",
+  "label": "Baker Pantry Panic",
+  "prompt": "Baker Pantry Panic, a top-down kitchen brawler where a chef clears pantry pests with a spatula, dodges rolling pins, and defeats the Overproofed King",
   "expectedRuntimeTemplate": "arena-action",
   "expectedWinCondition": "defeat-boss",
   "expectedBoss": "Overproofed King",
-  "expectedLeadPattern": "summon"
+  "expectedLeadPattern": "charge"
 }

@@ -42,6 +42,7 @@ interface ForgeTestState {
   playStyle: PlayStyle;
   weaponCooldownMs: number;
   weaponProjectiles: number;
+  weaponAutoFire: boolean;
   spawnPressureScale: number;
   pressureRamp: number;
   upgradeChoiceKinds: Upgrade['kind'][];
@@ -539,6 +540,7 @@ const SAFE_STATE: ForgeTestState = {
   playStyle: DEFAULT_PLAY_STYLE,
   weaponCooldownMs: 0,
   weaponProjectiles: 0,
+  weaponAutoFire: true,
   spawnPressureScale: 1,
   pressureRamp: 1,
   upgradeChoiceKinds: [],
@@ -880,6 +882,7 @@ class ForgeScene extends Phaser.Scene {
   private projectileDamage = 10;
   private cooldownMs = 360;
   private projectiles = 1;
+  private autoFire = true;
   private moveSpeed = 200;
   private meleeDamage = 18;
   private meleeRange = 44;
@@ -1327,6 +1330,7 @@ class ForgeScene extends Phaser.Scene {
     this.projectileDamage = Math.max(1, Math.round(w0.damage * cadence.damageScale));
     this.cooldownMs = Math.max(110, Math.round(w0.cooldownMs * cadence.cooldownScale));
     this.projectiles = clamp(w0.projectiles + cadence.extraProjectiles, 1, 12);
+    this.autoFire = w0.autoFire ?? true;
     this.moveSpeed = Math.round(this.def.player.speed * pressure.playerSpeedScale);
     this.meleeDamage = this.def.player.meleeDamage;
     this.meleeRange = this.def.player.meleeRange;
@@ -1617,17 +1621,20 @@ class ForgeScene extends Phaser.Scene {
       stroke: '#05070b',
       strokeThickness: 2,
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(DEPTH.hud);
+    const meleeOnly = this.def.player.weapons[0]?.autoFire === false;
     const helpCopy = this.isFlightShooter()
       ? 'WASD/arrows fly lanes · Space/J burst · Shift/K boost · P pause'
       : this.isPuzzleRoom()
         ? 'WASD/arrows step · push blocks onto switches · reach the exit · P pause'
-      : this.isAgentDashboard()
-        ? 'Click approvals · review agents, queues, logs, and deploy health · P pause'
-        : this.isDecisionRoom()
-        ? 'Click a decision option · review stakeholders, evidence, and audit trail · P pause'
-        : this.isPlatformer()
-        ? 'A/D move · W/↑ jump · Space/J melee · Shift/K dash · P pause'
-        : 'WASD/arrows move · Space/J melee · Shift/K dash · P pause';
+        : this.isAgentDashboard()
+          ? 'Click approvals · review agents, queues, logs, and deploy health · P pause'
+          : this.isDecisionRoom()
+            ? 'Click a decision option · review stakeholders, evidence, and audit trail · P pause'
+            : this.isPlatformer()
+              ? 'A/D move · W/↑ jump · Space/J melee · Shift/K dash · P pause'
+              : meleeOnly
+                ? 'WASD/arrows move · Space/J swing spatula · Shift/K dash · P pause'
+                : 'WASD/arrows move · Space/J melee · Shift/K dash · P pause';
     this.helpText = this.add.text(width / 2, height - 18, helpCopy, {
       ...TEXT,
       fontSize: '10px',
@@ -1658,6 +1665,7 @@ class ForgeScene extends Phaser.Scene {
       playStyle: this.playStyle(),
       weaponCooldownMs: this.cooldownMs,
       weaponProjectiles: this.projectiles,
+      weaponAutoFire: this.autoFire,
       spawnPressureScale: this.pressureProfile().countScale,
       pressureRamp: this.currentPressureRamp(),
       upgradeChoiceKinds: this.upgradeChoices.map((upgrade) => upgrade.kind),
@@ -4583,6 +4591,7 @@ class ForgeScene extends Phaser.Scene {
   }
 
   private updateAutoFire(deltaMs: number) {
+    if (!this.autoFire) return;
     this.fireTimer += deltaMs;
     if (this.fireTimer < this.cooldownMs) return;
     this.fireTimer = 0;
@@ -11862,8 +11871,17 @@ function runSelfTestIfRequested() {
       const roles = afterStart.enemyRoleSignature;
       const waveRoles = afterStart.waveRoleSignature;
       const hasRoles = (...needles: Enemy['role'][]) => needles.every((role) => roles.includes(role));
+      if (afterStart.weaponAutoFire === false) {
+        check(
+          'manual weapon disables auto-fire',
+          afterStart.weaponAutoFire === false,
+          `runtime ${afterStart.weaponAutoFire}`,
+        );
+      }
       let profileCompositionOk = roles.length >= 3 && waveRoles.length === afterStart.waveCount && afterStart.waveCount >= 4;
-      if (afterStart.feelProfile === 'arcade-survivor') {
+      if (afterStart.feelProfile === 'arcade-survivor' && afterStart.weaponAutoFire === false) {
+        profileCompositionOk = profileCompositionOk && hasRoles('chaser', 'charger', 'brute') && waveRoles.includes('charger') && waveRoles.includes('brute');
+      } else if (afterStart.feelProfile === 'arcade-survivor') {
         profileCompositionOk = profileCompositionOk && hasRoles('chaser', 'sapper', 'shooter') && waveRoles.includes('sapper');
       } else if (afterStart.feelProfile === 'bullet-hell-raid') {
         profileCompositionOk = profileCompositionOk && hasRoles('shooter', 'orbiter', 'sniper') && waveRoles.includes('orbiter') && waveRoles.includes('sniper') && afterStart.waveCount >= 5;
@@ -12533,7 +12551,7 @@ function arenaMood(def: GameDefinition): ArenaMood {
   if (def.runtimeTemplate === 'flight-shooter') return 'sky';
   if (def.runtimeTemplate === 'platformer') return 'platform';
   if (def.runtimeTemplate === 'decision-room' || def.runtimeTemplate === 'agent-dashboard' || def.runtimeTemplate === 'puzzle-room') return 'security';
-  if (/(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|cozy)/.test(text)) return 'bakery';
+  if (/(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|pantry|baker|cozy)/.test(text)) return 'bakery';
   if (/(ghost|haunt|grave|vampire|witch|crypt|spirit|bone|spooky|horror)/.test(text)) return 'haunted';
   if (/(shockwave|shock|seismic|quake|earthquake|tremor|sonic|stomp|slam|basalt|fault)/.test(text)) return 'seismic';
   if (/(laser-grid|grid|lattice|scanner|security|crossfire|tripwire|firewall|lockdown)/.test(text)) return 'security';

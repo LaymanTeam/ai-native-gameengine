@@ -99,6 +99,7 @@ export const weaponSchema = z.object({
   projectiles: z.number().int().min(1).max(12).describe('shots per fire'),
   spread: z.number().min(0).describe('radians between shots'),
   pierce: z.number().int().min(0),
+  autoFire: z.boolean().default(true).describe('whether the runtime fires this weapon automatically at the nearest enemy'),
 });
 
 export const playerSchema = z.object({

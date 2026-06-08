@@ -31,12 +31,12 @@ function assetMood(definition: GameDefinition): LocalAssetMood {
   if (definition.runtimeTemplate === 'flight-shooter' || /(airplane|plane|jet|flight|sky|cloud|storm|zeppelin|dogfight|pilot|fighter)/.test(text)) return 'sky';
   if (definition.runtimeTemplate === 'puzzle-room' || definition.runtimeTemplate === 'agent-dashboard' || definition.runtimeTemplate === 'decision-room') return 'security';
   if (definition.runtimeTemplate === 'platformer' || /(platform|platformer|jump|jumper|ledge|castle|cave|ruin|temple|sideview|sidescroller)/.test(text)) return 'platform';
-  if (/(pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|portal)/.test(text)) return 'bakery';
+  if (/(pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|portal|pantry|baker)/.test(text)) return 'bakery';
   if (/(ghost|haunt|grave|vampire|witch|crypt|spirit|bone|spooky|horror)/.test(text)) return 'haunted';
   if (/(laser-grid|grid|lattice|scanner|security|crossfire|tripwire|firewall|lockdown)/.test(text)) return 'security';
   if (/(^|\s)(coast(?:al)?|tide|ocean|sea|waves?|harbor|beach|forest|meadow|reef|shore)(\s|$)/.test(text)) return 'coast';
   if (/(space|alien|star|moon|planet|orbital|comet|void|cosmic|neon|cyber|drone)/.test(text)) return 'space';
-  if (/(bakery|cozy)/.test(text)) return 'bakery';
+  if (/(bakery|pantry|baker|cozy)/.test(text)) return 'bakery';
   return 'neutral';
 }
 
@@ -457,7 +457,7 @@ function curatedBackdropSource(definition: GameDefinition, asset: Asset): string
   }
   if (
     definition.winCondition === 'defeat-boss' &&
-    /(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|portal|summon|summoner|swarm)/.test(text)
+    /(bakery|pizza|kitchen|chef|food|pastr|cake|sugar|bread|oven|portal|summon|summoner|swarm|pantry|baker)/.test(text)
   ) {
     return 'runtime:forge/curated/background/bakery-portal-arena.png';
   }

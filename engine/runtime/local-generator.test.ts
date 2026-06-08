@@ -43,7 +43,7 @@ function waveRoles(def: GameDefinition) {
   return def.waves.map((wave) => roleByEnemyId.get(wave.enemyId));
 }
 
-const haunted = assertReferencedAssetsExist('a chaotic haunted bakery roguelite');
+const haunted = assertReferencedAssetsExist('a chaotic haunted crypt roguelite');
 const space = assertReferencedAssetsExist('a neon space arena shooter with drone swarms');
 assertReferencedAssetsExist('a cozy coastal survivor gathering light');
 
@@ -51,8 +51,11 @@ const firstGameSlice = assertReferencedAssetsExist(FIRST_GAME_VERTICAL_SLICE.pro
 assert.equal(firstGameSlice.runtimeTemplate, FIRST_GAME_VERTICAL_SLICE.expectedRuntimeTemplate, 'first-game slice should stay on the arena runtime');
 assert.equal(firstGameSlice.winCondition, FIRST_GAME_VERTICAL_SLICE.expectedWinCondition, 'first-game slice should stay boss-backed');
 assert.equal(firstGameSlice.boss?.name, FIRST_GAME_VERTICAL_SLICE.expectedBoss, 'first-game slice should route to the bakery boss');
-assert.equal(firstGameSlice.boss?.patterns[0], FIRST_GAME_VERTICAL_SLICE.expectedLeadPattern, 'first-game slice should lead with the summoner pattern');
-assert.equal(firstGameSlice.feelProfile, 'bullet-hell-raid', 'first-game slice should use the raid pressure profile');
+assert.equal(firstGameSlice.boss?.patterns[0], FIRST_GAME_VERTICAL_SLICE.expectedLeadPattern, 'first-game slice should lead with the pantry boss charge pattern');
+assert.equal(firstGameSlice.title, 'Baker Pantry Panic', 'first-game slice should use the authored pantry title');
+assert.equal(firstGameSlice.feelProfile, 'arcade-survivor', 'first-game slice should use the melee-friendly arcade profile');
+assert.equal(firstGameSlice.player.weapons[0]?.autoFire, false, 'first-game slice should be melee-first instead of auto-fire');
+assert.deepEqual(enemyRoles(firstGameSlice), ['chaser', 'charger', 'brute'], 'first-game slice should use pantry brawler enemy roles');
 assert.ok(firstGameSlice.assets.some((asset) => asset.key === 'scene-backdrop'), 'first-game slice should include a literal curated backdrop path');
 
 const survive = assertReferencedAssetsExist('a cozy coastal survivor gathering light');

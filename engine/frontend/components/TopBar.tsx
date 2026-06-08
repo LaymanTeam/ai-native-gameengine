@@ -18,7 +18,7 @@ const LINKS = [
 ] as const;
 
 const GAME_SURFACE_LINKS = [
-  { href: '/forge?play', label: 'Bakery build' },
+  { href: '/forge?play', label: 'Pantry build' },
 ] as const;
 
 function SparkMark() {

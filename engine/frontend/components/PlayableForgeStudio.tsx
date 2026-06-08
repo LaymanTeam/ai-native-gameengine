@@ -184,12 +184,12 @@ export function PlayableForgeStudio() {
               <Text fw={500}>No build loaded yet</Text>
               <Text c="dimmed" maw={440} ta="center" size="sm">
                 Describe a game and press <b>Create build</b>. This proves the core loop from
-                local GameSpec to playable runtime — WASD/arrows to move, auto-fire, survive 90s.
+                local GameSpec to playable runtime.
               </Text>
             </Stack>
           )}
         </Paper>
-        {build && <Text size="xs" c="dimmed" ta="center">WASD / arrows to move · auto-fire · R to restart</Text>}
+        {build && <Text size="xs" c="dimmed" ta="center">WASD / arrows move · generated controls · R restart</Text>}
       </Stack>
     </Box>
   );
