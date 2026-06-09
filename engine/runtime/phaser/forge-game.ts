@@ -98,6 +98,12 @@ interface ForgeTestState {
   rescueHealth: number | null;
   rescueVisible: boolean;
   rescueContested: boolean;
+  pantryObjectiveVisible: boolean;
+  pantryIngredientsSecured: number;
+  pantryIngredientTarget: number | null;
+  pantryChecklist: string[];
+  pantryObjectiveFx: number;
+  chefSpriteReadable: boolean;
   unlockKeys: number;
   unlockKeyTarget: number | null;
   unlockProgress: number;
@@ -541,6 +547,26 @@ type RescueObjective = {
   gateLabel: Phaser.GameObjects.Text;
   pips: Phaser.GameObjects.Rectangle[];
 };
+type PantryIngredientId = 'flour' | 'sugar' | 'yeast';
+type PantryIngredient = {
+  id: PantryIngredientId;
+  label: string;
+  x: number;
+  y: number;
+  secured: boolean;
+  ring: Phaser.GameObjects.Arc;
+  core: Phaser.GameObjects.Rectangle;
+  labelText: Phaser.GameObjects.Text;
+  sparkle: Phaser.GameObjects.Graphics;
+};
+type PantryObjective = {
+  stations: PantryIngredient[];
+  panel: Phaser.GameObjects.Container;
+  checklist: Phaser.GameObjects.Text[];
+  secured: number;
+  target: number;
+  fx: number;
+};
 type SpawnPoint = { x: number; y: number };
 type TextureSpec = {
   key: string;
@@ -610,6 +636,12 @@ const SAFE_STATE: ForgeTestState = {
   rescueHealth: null,
   rescueVisible: false,
   rescueContested: false,
+  pantryObjectiveVisible: false,
+  pantryIngredientsSecured: 0,
+  pantryIngredientTarget: null,
+  pantryChecklist: [],
+  pantryObjectiveFx: 0,
+  chefSpriteReadable: false,
   unlockKeys: 0,
   unlockKeyTarget: null,
   unlockProgress: 0,
@@ -894,6 +926,9 @@ class ForgeScene extends Phaser.Scene {
   private rescueHp = 62;
   private rescueContested = false;
   private rescuePulseAt = -Infinity;
+  private pantryObjective: PantryObjective | undefined;
+  private pantryIngredientsSecured = 0;
+  private pantryObjectiveFx = 0;
   private unlockKeys = 0;
   private unlockGate: ExtractZone | undefined;
   private unlockProgress = 0;
@@ -1534,6 +1569,9 @@ class ForgeScene extends Phaser.Scene {
     this.objectiveGuideLabel = null;
     this.objectiveGuideDistance = null;
     this.objectiveMotionFrame = 0;
+    this.pantryObjective = undefined;
+    this.pantryIngredientsSecured = 0;
+    this.pantryObjectiveFx = 0;
     this.encounterPlate = undefined;
     this.encounterPlateTitle = null;
     this.encounterPlateObjective = null;
@@ -1640,6 +1678,7 @@ class ForgeScene extends Phaser.Scene {
     this.setupEscortObjective();
     this.setupRescueObjective();
     this.setupUnlockGateObjective();
+    this.setupPantryObjectiveLayer();
     this.setupPlatformerColliders();
 
     this.attackArc = this.add.circle(0, 0, this.meleeRange, hex(this.def.palette.accent), 0.18)
@@ -1742,6 +1781,9 @@ class ForgeScene extends Phaser.Scene {
       .find((child) => !(child as ArcadeImage).getData('boss')) as ArcadeImage | undefined;
     const firstEnemyKey = this.def.enemies[0]?.spriteKey ?? null;
     const backgroundAsset = this.def.assets.find((asset) => asset.kind === 'background');
+    const wavesCleared = this.refreshClearedWaves();
+    const pantryChecklist = this.pantryChecklist();
+    const pantryTarget = this.pantryRecipeTarget();
     return {
       scene: this.paused ? 'pause' : 'play',
       runtimeTemplate: this.runtimeTemplate(),
@@ -1764,7 +1806,7 @@ class ForgeScene extends Phaser.Scene {
       waveCount: this.def.waves.length,
       gatedWaveCount: this.def.waves.filter((wave) => (wave.spawnAfterWavesCleared ?? 0) > 0).length,
       activatedWaveCount: this.activatedWaves.size,
-      wavesCleared: this.refreshClearedWaves(),
+      wavesCleared,
       bossSpawnAfterWavesCleared: this.bossWaveGateTarget(),
       worldWidth: this.worldWidth(),
       worldHeight: this.worldHeight(),
@@ -1805,6 +1847,14 @@ class ForgeScene extends Phaser.Scene {
       rescueHealth: this.def.winCondition === 'rescue' ? this.rescueHp : null,
       rescueVisible: this.def.winCondition === 'rescue' && Boolean(this.rescueObjective?.ally.active),
       rescueContested: this.def.winCondition === 'rescue' && this.rescueContested,
+      pantryObjectiveVisible: Boolean(this.pantryObjective?.panel.visible && this.pantryObjective.panel.alpha > 0.1),
+      pantryIngredientsSecured: this.pantryIngredientsSecured,
+      pantryIngredientTarget: pantryTarget > 0 ? pantryTarget : null,
+      pantryChecklist,
+      pantryObjectiveFx: this.pantryObjective?.fx ?? this.pantryObjectiveFx,
+      chefSpriteReadable: isPantryBrawlerDefinition(this.def) &&
+        Boolean(this.assetByKey(this.def.player.spriteKey)?.src) &&
+        !this.generatedFallbackKeys.has(this.def.player.spriteKey),
       unlockKeys: this.def.winCondition === 'unlock-gate' ? this.unlockKeys : 0,
       unlockKeyTarget: this.def.winCondition === 'unlock-gate' ? this.unlockKeyTarget() : null,
       unlockProgress: this.def.winCondition === 'unlock-gate' ? this.unlockProgress : 0,
@@ -2646,6 +2696,7 @@ class ForgeScene extends Phaser.Scene {
     this.updateExtractZone(dt, now);
     this.updateRescueObjective(dt, now);
     this.updateUnlockGateObjective(dt, now);
+    this.updatePantryObjectiveLayer(now);
     this.updateArenaDirector(dt, now);
     this.updateArenaHazards(now);
     this.updateProfileDirector(now);
@@ -6176,6 +6227,164 @@ class ForgeScene extends Phaser.Scene {
     });
   }
 
+  private isPantryRecipe() {
+    return isPantryBrawlerDefinition(this.def);
+  }
+
+  private pantryRecipeTarget() {
+    if (!this.isPantryRecipe()) return 0;
+    const gateTarget = this.def.boss?.spawnAfterWavesCleared ?? 3;
+    return Math.max(3, Math.round(clamp(gateTarget, 1, Math.max(3, this.def.waves.length))));
+  }
+
+  private pantryChecklist() {
+    const objective = this.pantryObjective;
+    if (!this.isPantryRecipe()) return [];
+    const labels = objective?.stations.map((station) => station.label) ?? ['Flour', 'Sugar', 'Yeast'];
+    return labels.map((label, index) => `${label}: ${index < this.pantryIngredientsSecured ? 'secured' : 'pending'}`);
+  }
+
+  private setupPantryObjectiveLayer() {
+    if (!this.isPantryRecipe()) return;
+    const target = this.pantryRecipeTarget();
+    const worldWidth = this.worldWidth();
+    const worldHeight = this.worldHeight();
+    const accent = hex(this.def.palette.accent);
+    const xp = hex(this.def.palette.xp);
+    const panelWidth = 190;
+    const panelHeight = 94;
+    const panel = this.add.container(16, 72)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.hud + 0.22)
+      .setAlpha(0.86);
+    const panelBg = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x05070b, 0.36)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, accent, 0.28);
+    const title = this.add.text(12, 10, 'PANTRY RECIPE', {
+      ...TEXT,
+      fontSize: '8px',
+      fontStyle: '800',
+      color: this.def.palette.xp,
+    }).setOrigin(0, 0);
+    const checklist = ['Flour', 'Sugar', 'Yeast'].slice(0, target).map((label, index) =>
+      this.add.text(14, 31 + index * 18, `${label}: pending`, {
+        ...TEXT,
+        fontSize: '11px',
+        fontStyle: '800',
+        color: '#ffffff',
+        stroke: '#05070b',
+        strokeThickness: 2,
+      }).setOrigin(0, 0),
+    );
+    panel.add([panelBg, title, ...checklist]);
+
+    const pantryIngredients: Array<{ id: PantryIngredientId; label: string; x: number; y: number }> = [
+      { id: 'flour', label: 'Flour', x: worldWidth * 0.25, y: worldHeight * 0.34 },
+      { id: 'sugar', label: 'Sugar', x: worldWidth * 0.72, y: worldHeight * 0.38 },
+      { id: 'yeast', label: 'Yeast', x: worldWidth * 0.48, y: worldHeight * 0.72 },
+    ];
+    const ingredientDefs = pantryIngredients.slice(0, target);
+
+    const stations = ingredientDefs.map((ingredient, index): PantryIngredient => {
+      const ring = this.add.circle(ingredient.x, ingredient.y, 38, accent, 0.07)
+        .setStrokeStyle(2, accent, 0.52)
+        .setDepth(DEPTH.orb - 0.16);
+      const core = this.add.rectangle(ingredient.x, ingredient.y, 34, 24, accent, 0.18)
+        .setRotation(index % 2 ? -0.16 : 0.14)
+        .setStrokeStyle(1, xp, 0.26)
+        .setDepth(DEPTH.orb - 0.1);
+      const sparkle = this.add.graphics().setDepth(DEPTH.orb - 0.08);
+      const labelText = this.add.text(ingredient.x, ingredient.y + 48, ingredient.label, {
+        ...TEXT,
+        fontSize: '11px',
+        fontStyle: '800',
+        color: this.def.palette.xp,
+        stroke: '#10131a',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(DEPTH.orb + 0.08);
+      return { ...ingredient, secured: false, ring, core, labelText, sparkle };
+    });
+
+    this.pantryObjective = { stations, panel, checklist, secured: 0, target, fx: 1 + stations.length + checklist.length };
+    this.pantryObjectiveFx = this.pantryObjective.fx;
+    this.addDirectorEvent('Recipe: recover Flour, Sugar, Yeast', this.def.palette.xp, 6800);
+    this.syncPantryRecipeProgress(this.clearedWaves.size);
+    this.updatePantryObjectiveLayer(this.time.now);
+  }
+
+  private syncPantryRecipeProgress(clearedCount = this.clearedWaves.size) {
+    if (!this.isPantryRecipe()) return;
+    const target = this.pantryRecipeTarget();
+    const nextSecured = Math.min(target, Math.max(0, clearedCount));
+    if (nextSecured <= this.pantryIngredientsSecured) return;
+    const previous = this.pantryIngredientsSecured;
+    this.pantryIngredientsSecured = nextSecured;
+    if (this.pantryObjective) this.pantryObjective.secured = nextSecured;
+
+    for (let index = previous; index < nextSecured; index++) {
+      const station = this.pantryObjective?.stations[index];
+      if (!station) continue;
+      station.secured = true;
+      this.pulse(station.x, station.y, this.def.palette.xp, 58);
+      this.sparkBurst(station.x, station.y, this.def.palette.xp, 12);
+      this.addDirectorEvent(`${station.label} secured`, this.def.palette.xp, 5200);
+    }
+    if (nextSecured >= target && previous < target) {
+      this.flash('Recipe complete');
+      this.addDirectorEvent('Recipe complete: confront the Overproofed King', this.def.palette.danger, 6800);
+    }
+    this.pantryObjectiveFx += Math.max(1, nextSecured - previous) * 4;
+    if (this.pantryObjective) this.pantryObjective.fx = this.pantryObjectiveFx;
+  }
+
+  private updatePantryObjectiveLayer(time: number) {
+    const objective = this.pantryObjective;
+    if (!objective || !this.isPantryRecipe()) return;
+    const secured = this.pantryIngredientsSecured;
+    objective.secured = secured;
+    objective.panel.setAlpha(this.boss?.active ? 0.68 : 0.88);
+    objective.checklist.forEach((text, index) => {
+      const station = objective.stations[index];
+      if (!station) return;
+      const isSecured = index < secured;
+      text
+        .setText(`${station.label}: ${isSecured ? 'secured' : 'pending'}`)
+        .setColor(isSecured ? this.def.palette.xp : '#ffffff');
+    });
+
+    objective.stations.forEach((station, index) => {
+      const isSecured = index < secured;
+      const colorString = isSecured ? this.def.palette.xp : this.def.palette.accent;
+      const color = hex(colorString);
+      const pulse = 0.5 + Math.sin(time * 0.006 + index) * 0.18;
+      station.ring
+        .setFillStyle(color, isSecured ? 0.1 : 0.05 + pulse * 0.04)
+        .setStrokeStyle(isSecured ? 3 : 2, color, isSecured ? 0.72 : 0.42 + pulse * 0.18)
+        .setScale(isSecured ? 1.05 : 1 + pulse * 0.05);
+      station.core
+        .setFillStyle(color, isSecured ? 0.3 : 0.14)
+        .setStrokeStyle(1, isSecured ? 0xffffff : color, isSecured ? 0.48 : 0.24)
+        .setScale(isSecured ? 1.08 : 1);
+      station.labelText
+        .setText(isSecured ? `${station.label} secured` : station.label)
+        .setColor(colorString)
+        .setAlpha(isSecured ? 0.88 : 1);
+      station.sparkle.clear();
+      station.sparkle.lineStyle(2, color, isSecured ? 0.46 : 0.18 + pulse * 0.18);
+      for (let spoke = 0; spoke < 4; spoke++) {
+        const angle = time * 0.0015 + spoke * Math.PI / 2 + index * 0.5;
+        const inner = isSecured ? 18 : 22;
+        const outer = isSecured ? 31 : 36 + pulse * 6;
+        station.sparkle.lineBetween(
+          station.x + Math.cos(angle) * inner,
+          station.y + Math.sin(angle) * inner,
+          station.x + Math.cos(angle) * outer,
+          station.y + Math.sin(angle) * outer,
+        );
+      }
+    });
+  }
+
   private setupRescueObjective() {
     if (this.def.winCondition !== 'rescue') return;
     const { width, height } = this.scale;
@@ -7342,7 +7551,9 @@ class ForgeScene extends Phaser.Scene {
       if (this.waveHasLiveEnemies(waveIndex)) continue;
       this.clearedWaves.add(waveIndex);
     }
-    return this.clearedWaves.size;
+    const clearedCount = this.clearedWaves.size;
+    this.syncPantryRecipeProgress(clearedCount);
+    return clearedCount;
   }
 
   private maybeSpawnBoss() {
@@ -8654,6 +8865,11 @@ class ForgeScene extends Phaser.Scene {
         ? `KEYS ${this.unlockKeys}/${this.unlockKeyTarget()}`
         : `UNLOCK EXIT ${Math.floor(this.unlockProgress)}/${this.unlockHoldSeconds()}S`;
     }
+    if (this.isPantryRecipe()) {
+      return this.boss?.active
+        ? `KING HP ${Math.ceil((this.boss.getData('hp') as number) || 0)}`
+        : `INGREDIENTS ${this.pantryIngredientsSecured}/${this.pantryRecipeTarget()}`;
+    }
     if (this.def.winCondition === 'defeat-boss') {
       return this.boss?.active ? `BOSS HP ${Math.ceil((this.boss.getData('hp') as number) || 0)}` : `HUNT ${this.def.boss?.name ?? 'BOSS'}`;
     }
@@ -8852,6 +9068,10 @@ class ForgeScene extends Phaser.Scene {
         label: this.unlockKeys >= this.unlockKeyTarget() ? 'exit gate' : 'locked gate',
         color: this.unlockKeys >= this.unlockKeyTarget() ? this.def.palette.xp : this.def.palette.accent,
       });
+    } else if (this.isPantryRecipe() && this.pantryObjective && !this.boss?.active) {
+      for (const station of this.pantryObjective.stations) {
+        if (!station.secured) targets.push({ x: station.x, y: station.y, label: station.label, color: this.def.palette.xp });
+      }
     }
     return targets;
   }
@@ -8957,6 +9177,7 @@ class ForgeScene extends Phaser.Scene {
     if (this.extractZone) count += 1 + this.extractZone.pips.length;
     if (this.rescueObjective) count += 2 + this.rescueObjective.pips.length;
     if (this.unlockGate) count += 1 + this.unlockGate.pips.length;
+    if (this.pantryObjective) count += this.pantryObjective.fx;
     return count;
   }
 
@@ -9011,6 +9232,10 @@ class ForgeScene extends Phaser.Scene {
         label: this.unlockKeys >= this.unlockKeyTarget() ? 'exit gate' : 'locked gate',
         color: this.unlockKeys >= this.unlockKeyTarget() ? this.def.palette.xp : this.def.palette.accent,
       };
+    }
+    if (this.isPantryRecipe() && this.pantryObjective && !this.boss?.active) {
+      const station = this.pantryObjective.stations.find((candidate) => !candidate.secured);
+      if (station) return { x: station.x, y: station.y, label: station.label, color: this.def.palette.xp };
     }
     if (this.def.winCondition === 'defeat-boss' && this.boss?.active) {
       return { x: this.boss.x, y: this.boss.y, label: 'boss', color: this.def.palette.danger };
@@ -9077,6 +9302,11 @@ class ForgeScene extends Phaser.Scene {
       return this.unlockKeys < this.unlockKeyTarget()
         ? `Keys ${this.unlockKeys}/${this.unlockKeyTarget()} · Score ${this.score}`
         : `Exit ${Math.floor(this.unlockProgress)}/${this.unlockHoldSeconds()}s${this.unlockContested ? ' · Contested' : ''}`;
+    }
+    if (this.isPantryRecipe()) {
+      return this.boss?.active
+        ? `Overproofed King ${Math.ceil((this.boss.getData('hp') as number) || 0)} HP · Ingredients ${this.pantryIngredientsSecured}/${this.pantryRecipeTarget()}`
+        : `Ingredients ${this.pantryIngredientsSecured}/${this.pantryRecipeTarget()} · Clear pantry waves`;
     }
     if (this.def.winCondition === 'clear-waves') {
       return `Score ${this.score} · Waves ${this.spawnQueue.length + this.pendingSpawns + this.enemies.children.size}`;
@@ -9403,6 +9633,35 @@ class ForgeScene extends Phaser.Scene {
     const rimWidth = bakeryLiteralBackdrop ? 2 : literalBackdrop ? 5 : brightPalette ? 3 : 2;
 
     layer.clear();
+    if (this.isPantryRecipe()) {
+      if (state === 'dash') {
+        layer.lineStyle(3, xp, 0.5);
+        for (let i = -1; i <= 1; i++) {
+          const offset = i * r * 0.32;
+          layer.lineBetween(
+            x - vx * r * 0.3 + nx * offset,
+            y - vy * r * 0.3 + ny * offset,
+            x - vx * r * 2.1 + nx * offset,
+            y - vy * r * 2.1 + ny * offset,
+          );
+        }
+        return;
+      }
+      if (state === 'attack') {
+        layer.lineStyle(4, accent, 0.66);
+        layer.lineBetween(x + vx * r * 0.5 - nx * r * 0.62, y + vy * r * 0.5 - ny * r * 0.62, x + vx * r * 1.9, y + vy * r * 1.9);
+        layer.lineBetween(x + vx * r * 1.9, y + vy * r * 1.9, x + vx * r * 0.5 + nx * r * 0.62, y + vy * r * 0.5 + ny * r * 0.62);
+        layer.lineStyle(1, fxColor, 0.28);
+        layer.strokeCircle(x + vx * r * 0.96, y + vy * r * 0.96, r * 0.88);
+        return;
+      }
+      if (state === 'hurt') {
+        layer.lineStyle(3, danger, 0.58);
+        layer.strokeCircle(x, y, r * 1.14);
+        return;
+      }
+      return;
+    }
     if (silhouetteAlpha > 0) {
       layer.fillStyle(0x000000, silhouetteAlpha);
       layer.fillCircle(x, y, literalBackdrop ? r * 1.48 : r * 1.38);
@@ -9542,6 +9801,7 @@ class ForgeScene extends Phaser.Scene {
     const shoulderY = y + vy * r * 0.18;
 
     layer.clear();
+    if (this.isPantryRecipe()) return;
     if (hasLiteralBackdrop(this.def) && arenaMood(this.def) === 'bakery' && (state === 'idle' || state === 'move')) {
       layer.lineStyle(1, projectile, 0.18);
       layer.lineBetween(x + vx * r * 0.42, y + vy * r * 0.42, x + vx * r * 1.1, y + vy * r * 1.1);
@@ -9631,6 +9891,12 @@ class ForgeScene extends Phaser.Scene {
     g.setDepth(enemy.depth + 0.24);
     if (this.visualEvidenceModeActive(time) && hasLiteralBackdrop(this.def)) {
       g.setAlpha(0);
+      return;
+    }
+    if (this.isPantryRecipe() && !rig.boss) {
+      g.setAlpha(0);
+      const mutedState = `${role}-sprite-rig-muted`;
+      if (!this.enemyAnimationStates.includes(mutedState)) this.enemyAnimationStates.push(mutedState);
       return;
     }
     g.setAlpha(rig.boss ? 0.92 : 0.78);
@@ -11979,15 +12245,27 @@ function runSelfTestIfRequested() {
         );
         check(
           'boss wave-clear gate reaches runtime',
-          afterStart.bossSpawnAfterWavesCleared === 2 &&
+          afterStart.bossSpawnAfterWavesCleared === 3 &&
             afterStart.wavesCleared < afterStart.bossSpawnAfterWavesCleared &&
             afterStart.bossHealth === null,
           `gate ${afterStart.bossSpawnAfterWavesCleared}, cleared ${afterStart.wavesCleared}, boss ${afterStart.bossHealth}`,
         );
         check(
+          'pantry recipe objective reaches runtime',
+          afterStart.pantryObjectiveVisible === true &&
+            afterStart.pantryIngredientTarget === 3 &&
+            afterStart.pantryIngredientsSecured === 0 &&
+            afterStart.pantryChecklist.some((item) => item.includes('Flour')) &&
+            afterStart.pantryChecklist.some((item) => item.includes('Sugar')) &&
+            afterStart.pantryChecklist.some((item) => item.includes('Yeast')) &&
+            afterStart.pantryObjectiveFx > 0 &&
+            afterStart.chefSpriteReadable === true,
+          `visible ${afterStart.pantryObjectiveVisible}, secured ${afterStart.pantryIngredientsSecured}/${afterStart.pantryIngredientTarget}, checklist ${afterStart.pantryChecklist.join('|')}, fx ${afterStart.pantryObjectiveFx}, chef ${afterStart.chefSpriteReadable}`,
+        );
+        check(
           'sequential pantry waves reach runtime',
-          afterStart.waveCount === 2 &&
-            afterStart.gatedWaveCount === 1 &&
+          afterStart.waveCount === 3 &&
+            afterStart.gatedWaveCount === 2 &&
             afterStart.activatedWaveCount === 1,
           `waves ${afterStart.waveCount}, gated ${afterStart.gatedWaveCount}, activated ${afterStart.activatedWaveCount}`,
         );
@@ -11997,21 +12275,35 @@ function runSelfTestIfRequested() {
         check(
           'clearing first pantry wave activates second wave',
           afterFirstWaveClear.wavesCleared >= 1 &&
+            afterFirstWaveClear.pantryIngredientsSecured >= 1 &&
             afterFirstWaveClear.activatedWaveCount === 2 &&
             afterFirstWaveClear.enemiesAlive > 0 &&
             afterFirstWaveClear.bossHealth === null,
-          `cleared ${afterFirstWaveClear.wavesCleared}, activated ${afterFirstWaveClear.activatedWaveCount}, enemies ${afterFirstWaveClear.enemiesAlive}, boss ${afterFirstWaveClear.bossHealth}`,
+          `cleared ${afterFirstWaveClear.wavesCleared}, ingredients ${afterFirstWaveClear.pantryIngredientsSecured}, activated ${afterFirstWaveClear.activatedWaveCount}, enemies ${afterFirstWaveClear.enemiesAlive}, boss ${afterFirstWaveClear.bossHealth}`,
+        );
+        api.completeCurrentWave();
+        await sleep(1800);
+        const afterSecondWaveClear = api.getState();
+        check(
+          'clearing second pantry wave activates third wave',
+          afterSecondWaveClear.wavesCleared >= 2 &&
+            afterSecondWaveClear.pantryIngredientsSecured >= 2 &&
+            afterSecondWaveClear.activatedWaveCount === 3 &&
+            afterSecondWaveClear.enemiesAlive > 0 &&
+            afterSecondWaveClear.bossHealth === null,
+          `cleared ${afterSecondWaveClear.wavesCleared}, ingredients ${afterSecondWaveClear.pantryIngredientsSecured}, activated ${afterSecondWaveClear.activatedWaveCount}, enemies ${afterSecondWaveClear.enemiesAlive}, boss ${afterSecondWaveClear.bossHealth}`,
         );
         api.completeCurrentWave();
         await sleep(1200);
-        const afterSecondWaveClear = api.getState();
+        const afterThirdWaveClear = api.getState();
         check(
-          'clearing second pantry wave starts boss fight',
-          afterSecondWaveClear.wavesCleared >= 2 &&
-            afterSecondWaveClear.bossHealth !== null,
-          `cleared ${afterSecondWaveClear.wavesCleared}, boss ${afterSecondWaveClear.bossHealth}`,
+          'clearing third pantry wave starts boss fight',
+          afterThirdWaveClear.wavesCleared >= 3 &&
+            afterThirdWaveClear.pantryIngredientsSecured >= 3 &&
+            afterThirdWaveClear.bossHealth !== null,
+          `cleared ${afterThirdWaveClear.wavesCleared}, ingredients ${afterThirdWaveClear.pantryIngredientsSecured}, boss ${afterThirdWaveClear.bossHealth}`,
         );
-        const bossHpBeforeDamage = afterSecondWaveClear.bossHealth ?? 0;
+        const bossHpBeforeDamage = afterThirdWaveClear.bossHealth ?? 0;
         api.damageBoss(Math.max(1, Math.floor(bossHpBeforeDamage / 4)));
         await sleep(260);
         const afterBossDamage = api.getState();
@@ -12265,8 +12557,8 @@ function runSelfTestIfRequested() {
       let profileCompositionOk = roles.length >= 3 && waveRoles.length === afterStart.waveCount && afterStart.waveCount >= 4;
       if (isPantryBrawler) {
         profileCompositionOk =
-          afterStart.waveCount === 2 &&
-          afterStart.gatedWaveCount === 1 &&
+          afterStart.waveCount === 3 &&
+          afterStart.gatedWaveCount === 2 &&
           hasRoles('chaser', 'charger', 'brute') &&
           waveRoles.includes('chaser') &&
           waveRoles.includes('charger') &&

@@ -150,7 +150,18 @@ async function main() {
     assert(playState.winCondition === 'defeat-boss', `unexpected win condition ${playState.winCondition}`);
     assert(playState.weaponAutoFire === false, 'Pantry demo should be manual melee, not auto-fire');
     assert(playState.bossHealth === null, `boss should stay gated on wave one, got ${playState.bossHealth}`);
-    assert(playState.bossSpawnAfterWavesCleared === 2, `boss gate should be 2 waves, got ${playState.bossSpawnAfterWavesCleared}`);
+    assert(playState.bossSpawnAfterWavesCleared === 3, `boss gate should be 3 ingredients, got ${playState.bossSpawnAfterWavesCleared}`);
+    assert(playState.pantryObjectiveVisible === true, 'Pantry recipe objective should be visible');
+    assert(playState.pantryIngredientTarget === 3, `Pantry recipe should target 3 ingredients, got ${playState.pantryIngredientTarget}`);
+    assert(playState.pantryIngredientsSecured === 0, `Pantry ingredients should start at 0, got ${playState.pantryIngredientsSecured}`);
+    assert(
+      Array.isArray(playState.pantryChecklist) &&
+        playState.pantryChecklist.some((item) => item.includes('Flour')) &&
+        playState.pantryChecklist.some((item) => item.includes('Sugar')) &&
+        playState.pantryChecklist.some((item) => item.includes('Yeast')),
+      `Pantry checklist missing expected ingredients: ${playState.pantryChecklist?.join(', ')}`,
+    );
+    assert(playState.chefSpriteReadable === true, 'Pantry chef should use readable source-backed art');
     assert(playState.activatedWaveCount === 1, `only first wave should be active at start, got ${playState.activatedWaveCount}`);
     assert(playState.wavesCleared === 0, `no waves should be cleared at start, got ${playState.wavesCleared}`);
     assert(playState.enemiesAlive >= 3, `first wave should be visible, got ${playState.enemiesAlive} enemies`);

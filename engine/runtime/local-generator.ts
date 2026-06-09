@@ -598,8 +598,9 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
   ];
   const waves = isPantryPanic
     ? [
-        { atSeconds: 0.4, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 5, everyMs: 360 },
-        { atSeconds: 0.8, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 6, everyMs: 340, spawnAfterWavesCleared: 1 },
+        { atSeconds: 0.4, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 4, everyMs: 360 },
+        { atSeconds: 0.8, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 5, everyMs: 340, spawnAfterWavesCleared: 1 },
+        { atSeconds: 0.8, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 6, everyMs: 320, spawnAfterWavesCleared: 2 },
       ]
     : wantsBakeryPortalBackdrop
     ? [
@@ -623,7 +624,7 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
     xp: 50,
     score: 500,
     spawnAtSeconds: isPantryPanic ? 24 : wantsBakeryPortalBackdrop ? 32 : 75,
-    ...(isPantryPanic ? { spawnAfterWavesCleared: 2 } : {}),
+    ...(isPantryPanic ? { spawnAfterWavesCleared: 3 } : {}),
     patterns: isPantryPanic ? (['charge', 'summon', 'radial-burst'] as BossPattern[]) : wantsBakeryPortalBackdrop ? (['summon', 'radial-burst', 'beam'] as BossPattern[]) : selectBossPatterns(words, seed),
   } : undefined;
   const scoreTarget = winCondition === 'score-target' ? 210 + (seed % 110) : undefined;
@@ -917,7 +918,7 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
       'dash (Shift/K)',
       ...(isPantryPanic ? [] : ['auto-fire']),
       'pick upgrade on level up',
-      ...(isPantryPanic ? ['clear the pantry: swing the spatula, dodge rolling pins, and defeat the Overproofed King'] : []),
+      ...(isPantryPanic ? ['recover flour, sugar, and yeast, then defeat the Overproofed King'] : []),
       ...(!isPantryPanic && wantsBakeryPortalBackdrop ? ['clear the haunted bakery: cut through enchanted pastries, dodge sugar magic, and defeat the Overproofed King'] : []),
       ...(runtimeTemplate === 'flight-shooter' ? ['flight template: forward pressure lanes'] : []),
       ...(runtimeTemplate === 'platformer' ? ['platformer template: jump arcs and ledges'] : []),
