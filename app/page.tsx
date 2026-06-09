@@ -1,12 +1,8 @@
-import { Box } from '@mantine/core';
-import { Chat } from '@/engine/frontend/components/Chat';
+import { redirect } from 'next/navigation';
 
-// Studio = the agentic engine conversation. The director drives generation phase by phase
-// (design → assets → code → test → deploy); phases stream in as tool events + artifacts.
+// Landing page → the keyless playable demo (Baker Pantry Panic). The agentic creation engine
+// needs API keys to run, so the public entry point is the runtime demo that works without them.
+// The engine itself lives at /studio (set a Gemini key + FORGE_MODEL_API_ENABLED=1 to use it).
 export default function HomePage() {
-  return (
-    <Box px="md" py="lg" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <Chat />
-    </Box>
-  );
+  redirect('/forge?play');
 }
