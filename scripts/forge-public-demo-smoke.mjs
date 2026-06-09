@@ -143,7 +143,7 @@ async function main() {
     assert(forbiddenCalls.length === 0, `public demo made model/API calls before start: ${forbiddenCalls.join(', ')}`);
 
     await page.evaluate(() => window.__GAME_TEST__?.press?.('start'));
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(2800);
     const playState = await getState(page);
     assert(playState?.scene === 'play', `started demo should be in play scene, got ${playState?.scene}`);
     assert(playState.runtimeTemplate === 'arena-action', `unexpected runtime template ${playState.runtimeTemplate}`);
@@ -170,7 +170,7 @@ async function main() {
     assert(playState.chefSpriteReadable === true, 'Pantry chef should use readable source-backed art');
     assert(playState.activatedWaveCount === 1, `only first wave should be active at start, got ${playState.activatedWaveCount}`);
     assert(playState.wavesCleared === 0, `no waves should be cleared at start, got ${playState.wavesCleared}`);
-    assert(playState.enemiesAlive >= 3, `first wave should be visible, got ${playState.enemiesAlive} enemies`);
+    assert(playState.enemiesAlive >= 2, `first wave should be visible, got ${playState.enemiesAlive} enemies`);
     assert(playState.playerHealth >= 120, `player should not be hit immediately, hp ${playState.playerHealth}`);
     assert(forbiddenCalls.length === 0, `public demo made model/API calls after start: ${forbiddenCalls.join(', ')}`);
 

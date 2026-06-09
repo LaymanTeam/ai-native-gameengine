@@ -3253,8 +3253,8 @@ class ForgeScene extends Phaser.Scene {
     }
     if (this.isPantryRecipe()) {
       return {
-        x: clamp(width * 0.18, 120, width - 120),
-        y: clamp(height * 0.76, 120, height - 120),
+        x: clamp(width * 0.14, 120, width - 120),
+        y: clamp(height * 0.78, 120, height - 120),
       };
     }
     if (!this.isFlightShooter()) return { x: width / 2, y: height / 2 };
@@ -6267,8 +6267,8 @@ class ForgeScene extends Phaser.Scene {
     const worldWidth = this.worldWidth();
     const worldHeight = this.worldHeight();
     return [
-      { id: 'flour', label: 'Flour', x: worldWidth * 0.28, y: worldHeight * 0.68 },
-      { id: 'sugar', label: 'Sugar', x: worldWidth * 0.69, y: worldHeight * 0.35 },
+      { id: 'flour', label: 'Flour', x: worldWidth * 0.42, y: worldHeight * 0.66 },
+      { id: 'sugar', label: 'Sugar', x: worldWidth * 0.7, y: worldHeight * 0.35 },
       { id: 'yeast', label: 'Yeast', x: worldWidth * 0.83, y: worldHeight * 0.73 },
     ];
   }
