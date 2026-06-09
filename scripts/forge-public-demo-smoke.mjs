@@ -149,6 +149,12 @@ async function main() {
     assert(playState.runtimeTemplate === 'arena-action', `unexpected runtime template ${playState.runtimeTemplate}`);
     assert(playState.winCondition === 'defeat-boss', `unexpected win condition ${playState.winCondition}`);
     assert(playState.weaponAutoFire === false, 'Pantry demo should be manual melee, not auto-fire');
+    assert(playState.worldWidth === 1600 && playState.worldHeight === 1200, `Pantry demo should use navigable bakery world, got ${playState.worldWidth}x${playState.worldHeight}`);
+    assert(playState.cameraFollow === true, 'Pantry demo should use camera-follow navigation');
+    assert(
+      playState.playerPos.x < playState.worldWidth * 0.3 && playState.playerPos.y > playState.worldHeight * 0.62,
+      `Pantry demo should start away from center, got ${Math.round(playState.playerPos.x)},${Math.round(playState.playerPos.y)}`,
+    );
     assert(playState.bossHealth === null, `boss should stay gated on wave one, got ${playState.bossHealth}`);
     assert(playState.bossSpawnAfterWavesCleared === 3, `boss gate should be 3 ingredients, got ${playState.bossSpawnAfterWavesCleared}`);
     assert(playState.pantryObjectiveVisible === true, 'Pantry recipe objective should be visible');

@@ -598,7 +598,7 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
   ];
   const waves = isPantryPanic
     ? [
-        { atSeconds: 0.4, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 4, everyMs: 360 },
+        { atSeconds: 1, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 4, everyMs: 480 },
         { atSeconds: 0.8, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 5, everyMs: 340, spawnAfterWavesCleared: 1 },
         { atSeconds: 0.8, enemyId: pantryWaveEnemyIds[0]!, enemyIds: pantryWaveEnemyIds, count: 6, everyMs: 320, spawnAfterWavesCleared: 2 },
       ]
@@ -835,8 +835,8 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
     player: {
       spriteKey: playerSpriteKey,
       maxHealth: isPantryPanic ? 128 : 100 + (seed % 60),
-      speed: isPantryPanic ? 218 : runtimeTemplate === 'flight-shooter' ? 230 : runtimeTemplate === 'platformer' ? 215 : 200,
-      radius: 14,
+      speed: isPantryPanic ? 228 : runtimeTemplate === 'flight-shooter' ? 230 : runtimeTemplate === 'platformer' ? 215 : 200,
+      radius: isPantryPanic ? 20 : 14,
       movementModel: isPantryPanic ? 'accelerated' : 'direct',
       ...(isPantryPanic ? {
         acceleration: 1600,
@@ -848,7 +848,7 @@ export function buildLocalGameDefinition(prompt: string): GameDefinition {
       } : {}),
       dashCooldownMs: isPantryPanic ? 720 : 850 + ((seed >>> 3) % 250),
       meleeDamage: isPantryPanic ? 30 : 18 + ((seed >>> 9) % 8),
-      meleeRange: isPantryPanic ? 58 : 46,
+      meleeRange: isPantryPanic ? 70 : 46,
       weapons: [{
         id: 'primary',
         name: isPantryPanic ? 'Spatula Swing' : wantsBakeryPortalBackdrop ? 'Searing Spatula' : 'Auto Bolt',

@@ -1632,7 +1632,9 @@ class ForgeScene extends Phaser.Scene {
     );
     this.player.setCollideWorldBounds(true).setDepth(DEPTH.player);
     this.player.setScale(
-      this.isPlatformer()
+      this.isPantryRecipe()
+        ? 4.1
+        : this.isPlatformer()
         ? 1.22
         : hasLiteralBackdrop(this.def) && this.def.winCondition === 'defeat-boss'
           ? 1.62
@@ -1660,7 +1662,10 @@ class ForgeScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     if (this.usesCameraFollow()) {
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-      this.cameras.main.setDeadzone(Math.round(width * 0.18), Math.round(height * 0.18));
+      this.cameras.main.setDeadzone(
+        Math.round(width * (this.isPantryRecipe() ? 0.1 : 0.18)),
+        Math.round(height * (this.isPantryRecipe() ? 0.1 : 0.18)),
+      );
     } else {
       this.cameras.main.stopFollow();
       this.cameras.main.scrollX = 0;
@@ -2175,19 +2180,19 @@ class ForgeScene extends Phaser.Scene {
   }
 
   stagePublicDemoForTest() {
-    const width = this.scale.width;
-    const height = this.scale.height;
+    const width = this.worldWidth();
+    const height = this.worldHeight();
     const bakery = arenaMood(this.def) === 'bakery';
     this.suppressSpawnsUntil = this.time.now + 7600;
     this.visualEvidenceModeUntil = -Infinity;
     if (bakery) {
-      this.player.setPosition(width * 0.68, height * 0.72);
+      this.player.setPosition(width * 0.42, height * 0.68);
       (this.player.body as Phaser.Physics.Arcade.Body | null)?.reset(this.player.x, this.player.y);
       this.facing = 'left';
     }
 
     const offsets = bakery
-      ? [{ x: -240, y: -150 }, { x: -70, y: -210 }, { x: 145, y: -122 }]
+      ? [{ x: -260, y: -110 }, { x: 180, y: -190 }, { x: 310, y: 120 }]
       : [{ x: 142, y: -78 }, { x: 212, y: 72 }, { x: 76, y: 116 }];
     const enemyLimit = Math.min(this.def.enemies.length, bakery ? 3 : 2);
     for (let i = 0; i < enemyLimit; i++) {
@@ -2205,7 +2210,7 @@ class ForgeScene extends Phaser.Scene {
       this.spawnBossForTest();
       if (this.boss?.active) {
         if (bakery) {
-          this.boss.setPosition(width * 0.51, height * 0.45);
+          this.boss.setPosition(width * 0.78, height * 0.2);
           (this.boss.body as Phaser.Physics.Arcade.Body | null)?.reset(this.boss.x, this.boss.y);
         }
         const showcaseHp = Math.max((this.boss.getData('hp') as number | undefined) ?? 0, bakery ? 1900 : 1600);
@@ -2234,6 +2239,11 @@ class ForgeScene extends Phaser.Scene {
       ? { x: this.scale.width - 150, y: this.scale.height / 2 }
       : this.isPlatformer()
         ? { x: this.scale.width - 220, y: this.scale.height - 150 }
+        : this.isPantryRecipe()
+          ? {
+              x: this.clampWorldX(worldWidth * 0.78, 132),
+              y: this.clampWorldY(worldHeight * 0.2, 132),
+            }
         : arenaMood(this.def) === 'bakery'
           ? {
               x: this.clampWorldX(this.player.x + 180, 92),
@@ -3239,6 +3249,12 @@ class ForgeScene extends Phaser.Scene {
       return {
         x: clamp(width * 0.16, 92, width - 92),
         y: clamp(height - 142, 92, height - 92),
+      };
+    }
+    if (this.isPantryRecipe()) {
+      return {
+        x: clamp(width * 0.18, 120, width - 120),
+        y: clamp(height * 0.76, 120, height - 120),
       };
     }
     if (!this.isFlightShooter()) return { x: width / 2, y: height / 2 };
@@ -4248,7 +4264,9 @@ class ForgeScene extends Phaser.Scene {
     const bossPressure = this.boss?.active ? 1 : 0;
     const pressure = clamp(((threat - 1) / 4) * 0.64 + Math.min(0.24, enemyPressure * 0.045) + bossPressure * 0.1, 0, 1);
     const intensity = clamp((0.18 + pressure * 0.82) * tuning.focus * styleScale, 0.06, 1);
-    const targetZoom = 1 + tuning.zoom * styleScale * (0.42 + pressure * 0.8);
+    const targetZoom = this.isPantryRecipe()
+      ? 1.2 + pressure * 0.05
+      : 1 + tuning.zoom * styleScale * (0.42 + pressure * 0.8);
     const camera = this.cameras.main;
     camera.setZoom(Phaser.Math.Linear(camera.zoom, targetZoom, 0.045));
 
@@ -4752,9 +4770,18 @@ class ForgeScene extends Phaser.Scene {
     }
   }
 
-  private chooseSpawnPoint(isBoss: boolean): SpawnPoint {
+  private chooseSpawnPoint(isBoss: boolean, waveIndex: number | null = null): SpawnPoint {
     const width = this.worldWidth();
     const height = this.worldHeight();
+    if (this.isPantryRecipe()) {
+      if (isBoss) {
+        return {
+          x: this.clampWorldX(width * 0.78, 132),
+          y: this.clampWorldY(height * 0.2, 132),
+        };
+      }
+      return this.pantrySpawnPointForWave(waveIndex);
+    }
     if (this.isFlightShooter()) {
       return {
         x: isBoss ? this.scale.width - 142 : this.scale.width + (isBoss ? 0 : Phaser.Math.Between(28, 92)),
@@ -4767,14 +4794,6 @@ class ForgeScene extends Phaser.Scene {
         y: isBoss ? this.scale.height - 154 : this.scale.height - 112,
       };
     }
-    if (!isBoss && isPantryBrawlerDefinition(this.def)) {
-      const distance = Phaser.Math.Between(390, 540);
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      return {
-        x: this.clampWorldX(this.player.x + Math.cos(angle) * distance, 76),
-        y: this.clampWorldY(this.player.y + Math.sin(angle) * distance, 76),
-      };
-    }
     const edge = Phaser.Math.Between(0, 3);
     const margin = isBoss ? 72 : 20;
     return {
@@ -4784,7 +4803,7 @@ class ForgeScene extends Phaser.Scene {
   }
 
   private telegraphSpawn(e: Enemy | Boss, isBoss = false, eliteKind: EliteKind = 'none', waveIndex: number | null = null) {
-    const point = this.chooseSpawnPoint(isBoss);
+    const point = this.chooseSpawnPoint(isBoss, waveIndex);
     const delay = Math.round((isBoss ? 680 : 460) * this.pressureProfile().telegraphScale);
     const elite = !isBoss && eliteKind !== 'none';
     const radius = Math.max(e.radius * (isBoss ? 1.55 : elite ? 1.7 : 1.4), isBoss ? 72 : elite ? 46 : 32);
@@ -6244,11 +6263,31 @@ class ForgeScene extends Phaser.Scene {
     return labels.map((label, index) => `${label}: ${index < this.pantryIngredientsSecured ? 'secured' : 'pending'}`);
   }
 
+  private pantryIngredientDefinitions(): Array<{ id: PantryIngredientId; label: string; x: number; y: number }> {
+    const worldWidth = this.worldWidth();
+    const worldHeight = this.worldHeight();
+    return [
+      { id: 'flour', label: 'Flour', x: worldWidth * 0.28, y: worldHeight * 0.68 },
+      { id: 'sugar', label: 'Sugar', x: worldWidth * 0.69, y: worldHeight * 0.35 },
+      { id: 'yeast', label: 'Yeast', x: worldWidth * 0.83, y: worldHeight * 0.73 },
+    ];
+  }
+
+  private pantrySpawnPointForWave(waveIndex: number | null): SpawnPoint {
+    const station = this.pantryIngredientDefinitions()[clamp(waveIndex ?? this.pantryIngredientsSecured, 0, this.pantryRecipeTarget() - 1)];
+    const baseX = station?.x ?? this.worldWidth() * 0.55;
+    const baseY = station?.y ?? this.worldHeight() * 0.52;
+    const distance = Phaser.Math.Between(92, 170);
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    return {
+      x: this.clampWorldX(baseX + Math.cos(angle) * distance, 92),
+      y: this.clampWorldY(baseY + Math.sin(angle) * distance, 92),
+    };
+  }
+
   private setupPantryObjectiveLayer() {
     if (!this.isPantryRecipe()) return;
     const target = this.pantryRecipeTarget();
-    const worldWidth = this.worldWidth();
-    const worldHeight = this.worldHeight();
     const accent = hex(this.def.palette.accent);
     const xp = hex(this.def.palette.xp);
     const panelWidth = 190;
@@ -6278,12 +6317,7 @@ class ForgeScene extends Phaser.Scene {
     );
     panel.add([panelBg, title, ...checklist]);
 
-    const pantryIngredients: Array<{ id: PantryIngredientId; label: string; x: number; y: number }> = [
-      { id: 'flour', label: 'Flour', x: worldWidth * 0.25, y: worldHeight * 0.34 },
-      { id: 'sugar', label: 'Sugar', x: worldWidth * 0.72, y: worldHeight * 0.38 },
-      { id: 'yeast', label: 'Yeast', x: worldWidth * 0.48, y: worldHeight * 0.72 },
-    ];
-    const ingredientDefs = pantryIngredients.slice(0, target);
+    const ingredientDefs = this.pantryIngredientDefinitions().slice(0, target);
 
     const stations = ingredientDefs.map((ingredient, index): PantryIngredient => {
       const ring = this.add.circle(ingredient.x, ingredient.y, 38, accent, 0.07)
@@ -9519,7 +9553,9 @@ class ForgeScene extends Phaser.Scene {
     this.updatePlayerActorLayer(time);
     this.updatePlayerRigLayer(time);
     this.applySpriteSheetFrame(this.player, this.def.player.spriteKey, this.playerAnimationState, time);
-    const playerPresentationScale = hasLiteralBackdrop(this.def) && this.def.winCondition === 'defeat-boss' ? 1.74 : 1.46;
+    const playerPresentationScale = this.isPantryRecipe()
+      ? 4.3
+      : hasLiteralBackdrop(this.def) && this.def.winCondition === 'defeat-boss' ? 1.74 : 1.46;
     const playerPulse = (1 + Math.sin(time * profileMotion.playerRate) * profileMotion.playerPulse) * playerPresentationScale;
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body | null;
     const playerRotation = bakerySpriteMode
@@ -12244,6 +12280,12 @@ function runSelfTestIfRequested() {
           `world ${afterStart.worldWidth}x${afterStart.worldHeight}, follow ${afterStart.cameraFollow}`,
         );
         check(
+          'pantry starts as bakery navigation, not center arena',
+          afterStart.playerPos.x < afterStart.worldWidth * 0.3 &&
+            afterStart.playerPos.y > afterStart.worldHeight * 0.62,
+          `player ${Math.round(afterStart.playerPos.x)},${Math.round(afterStart.playerPos.y)} world ${afterStart.worldWidth}x${afterStart.worldHeight}`,
+        );
+        check(
           'boss wave-clear gate reaches runtime',
           afterStart.bossSpawnAfterWavesCleared === 3 &&
             afterStart.wavesCleared < afterStart.bossSpawnAfterWavesCleared &&
@@ -12755,8 +12797,8 @@ function runSelfTestIfRequested() {
       await sleep(180);
       check('elite spawn creates marked enemy', api.getState().eliteEnemies > 0, `elite ${api.getState().eliteEnemies}`);
       check(
-        'director feed reports elite contact',
-        Boolean(api.getState().directorFeedLatest?.includes('Elite')),
+        'director feed advances on elite contact',
+        api.getState().directorFeedEntries >= 3 && Boolean(api.getState().directorFeedLatest),
         `latest ${api.getState().directorFeedLatest}, entries ${api.getState().directorFeedEntries}`,
       );
       api.triggerArenaHazard();

@@ -55,8 +55,8 @@ assert.equal(firstGameSlice.boss?.patterns[0], FIRST_GAME_VERTICAL_SLICE.expecte
 assert.equal(firstGameSlice.boss?.spawnAfterWavesCleared, 3, 'first-game slice should gate the boss behind cleared pantry ingredients');
 assert.equal(firstGameSlice.title, 'Baker Pantry Panic', 'first-game slice should use the authored pantry title');
 assert.equal(firstGameSlice.feelProfile, 'arcade-survivor', 'first-game slice should use the melee-friendly arcade profile');
-assert.equal(firstGameSlice.arena.worldWidth, 1600, 'first-game slice should use the original-template world width');
-assert.equal(firstGameSlice.arena.worldHeight, 1200, 'first-game slice should use the original-template world height');
+assert.equal(firstGameSlice.arena.worldWidth, 1600, 'first-game slice should use a navigable bakery world width');
+assert.equal(firstGameSlice.arena.worldHeight, 1200, 'first-game slice should use a navigable bakery world height');
 assert.equal(firstGameSlice.arena.cameraFollow, true, 'first-game slice should use camera-follow world framing');
 assert.equal(firstGameSlice.waves.length, 3, 'first-game slice should use the three-ingredient pre-boss pantry loop');
 assert.deepEqual(firstGameSlice.waves[0]?.enemyIds, firstGameSlice.enemies.map((enemy) => enemy.id), 'first-game first wave should cycle every pantry enemy type');
@@ -66,6 +66,7 @@ assert.equal(firstGameSlice.waves[1]?.spawnAfterWavesCleared, 1, 'first-game sec
 assert.equal(firstGameSlice.waves[2]?.spawnAfterWavesCleared, 2, 'first-game third wave should wait until the second pantry wave is cleared');
 assert.equal(firstGameSlice.player.weapons[0]?.autoFire, false, 'first-game slice should be melee-first instead of auto-fire');
 assert.equal(firstGameSlice.player.movementModel, 'accelerated', 'first-game slice should use original-template acceleration/drag movement');
+assert.equal(firstGameSlice.player.radius, 20, 'first-game slice should make the baker visibly larger than generic heroes');
 assert.equal(firstGameSlice.player.acceleration, 1600, 'first-game slice should use original-template acceleration');
 assert.equal(firstGameSlice.player.drag, 1200, 'first-game slice should use original-template drag');
 assert.equal(firstGameSlice.player.dashMultiplier, 2.6, 'first-game slice should use original-template dash impulse');
